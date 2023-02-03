@@ -1,0 +1,35 @@
+#----------------INPUT CONFIGURATION---------------------
+default_in: postgresql
+in:
+  postgresql:
+    driver: pg-trigger
+    host: localhost
+    port: 5432
+    username: sail
+    password: password
+    database: example_app
+
+#----------------OUTPUT CONFIGURATION---------------------
+default_out: [ elasticsearch ]
+out:
+  elasticsearch:
+    driver: elastic
+    endpoints: [ "http://localhost:9200" ]
+    username:
+    password:
+
+#----------------MAPPING CONFIGURATION-----------------------
+mappings:
+  - name: posts
+    table: posts
+    chunk_size: 1500 #Default to 500
+    fields: [ 'description','name' ]
+    relations:
+      - name: author
+        table: users
+        type: one_to_one
+        foreign_key:
+          local: id
+          parent: user_id
+        fields: [ "name","id" ]
+

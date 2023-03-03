@@ -18,17 +18,21 @@ func (rel *Relation) GetLeftJoinQuery(parentTable string) string {
 		leftJoins = append(leftJoins, subrel.GetLeftJoinQuery(rel.Table))
 	}
 
+	softDeleteWhere := ""
+	if rel.SoftDelete {
+		softDeleteWhere = fmt.Sprintf(`WHERE "%s"."%s" IS NULL`, rel.Table, "deleted_at")
+	}
 	fields := Fields(rel.Fields)
-
 	switch rel.Type {
-	case "many_to_many":
+	case "one_to_many":
 		return fmt.Sprintf(
-			`LEFT OUTER JOIN (SELECT JSON_AGG(%s) AS "result", "%s"."%s" AS parent_ref FROM "%s" %s GROUP BY "%s"."%s") AS "%s" ON "%s"."parent_ref" = "%s"."%s"`,
+			`LEFT OUTER JOIN (SELECT JSON_AGG(%s) AS "result", "%s"."%s" AS parent_ref FROM "%s" %s %s GROUP BY "%s"."%s") AS "%s" ON "%s"."parent_ref" = "%s"."%s"`,
 			fields.asJsonBuildObjectQuery(rel.Table, additionalFields),
 			rel.Table,
 			rel.ForeignKey.Local,
 			rel.Table,
 			strings.Join(leftJoins, " "),
+			softDeleteWhere,
 			rel.Table,
 			rel.ForeignKey.Local,
 			rel.Name,
@@ -38,12 +42,40 @@ func (rel *Relation) GetLeftJoinQuery(parentTable string) string {
 		)
 	case "one_to_one":
 		return fmt.Sprintf(
-			`LEFT OUTER JOIN (SELECT %s AS "result", "%s"."%s" AS parent_ref FROM "%s" %s ) AS "%s" ON "%s"."parent_ref" = "%s"."%s"`,
+			`LEFT OUTER JOIN (SELECT %s AS "result", "%s"."%s" AS parent_ref FROM "%s" %s %s ) AS "%s" ON "%s"."parent_ref" = "%s"."%s"`,
 			fields.asJsonBuildObjectQuery(rel.Table, additionalFields),
 			rel.Table,
 			rel.ForeignKey.Local,
 			rel.Table,
 			strings.Join(leftJoins, " "),
+			softDeleteWhere,
+			rel.Name,
+			rel.Name,
+			parentTable,
+			rel.ForeignKey.Parent,
+		)
+	case "many_to_many":
+		if rel.ForeignKey.PivotFields.Len() > 0 {
+			pivotFields := Fields(rel.ForeignKey.PivotFields)
+			for alias, raw := range pivotFields.getParsedFields(rel.ForeignKey.PivotTable, nil) {
+				additionalFields[alias] = raw
+			}
+		}
+		return fmt.Sprintf(
+			`LEFT OUTER JOIN (SELECT JSON_AGG(%s) AS "result", "%s"."%s" AS parent_ref %s FROM "%s" INNER JOIN "%s" ON "%s"."%s"="%s"."%s" %s GROUP BY "%s"."%s") AS "%s" ON "%s"."parent_ref" = "%s"."%s"`,
+			fields.asJsonBuildObjectQuery(rel.Table, additionalFields),
+			rel.ForeignKey.PivotTable,
+			rel.ForeignKey.PivotLocal,
+			softDeleteWhere,
+			rel.ForeignKey.PivotTable,
+			rel.Table,
+			rel.Table,
+			rel.ForeignKey.Parent,
+			rel.ForeignKey.PivotTable,
+			rel.ForeignKey.PivotRelated,
+			strings.Join(leftJoins, " "),
+			rel.ForeignKey.PivotTable,
+			rel.ForeignKey.PivotLocal,
 			rel.Name,
 			rel.Name,
 			parentTable,
@@ -61,21 +93,40 @@ func (rel *Relation) GetReverseSelectQuery(table string, references []string, su
 
 	andRaw := ""
 	if references != nil && len(references) > 0 {
-		andRaw = `AND "id" IN (` + strings.Join(references, ", ") + `)`
+		andRaw = `AND "` + rel.ForeignKey.Local + `" IN (` + strings.Join(references, ",") + `)`
 	}
 	fromTable := table
 	if rel.Parent != nil {
 		fromTable = rel.Parent.Table
 	}
-	selectSql := fmt.Sprintf(
-		`SELECT * FROM "%s" WHERE "%s"."%s" = "%s"."%s" %s`,
-		rel.Table,
-		fromTable,
-		rel.ForeignKey.Parent,
-		rel.Table,
-		rel.ForeignKey.Local,
-		andRaw,
-	)
+	var selectSql string
+	switch rel.Type {
+	case "one_to_many", "one_to_one":
+		selectSql = fmt.Sprintf(
+			`SELECT * FROM "%s" WHERE "%s"."%s" = "%s"."%s" %s`,
+			rel.Table,
+			fromTable,
+			rel.ForeignKey.Parent,
+			rel.Table,
+			rel.ForeignKey.Local,
+			andRaw,
+		)
+	case "many_to_many":
+		selectSql = fmt.Sprintf(
+			`SELECT * FROM "%s" INNER JOIN "%s" ON "%s"."%s"="%s"."%s" WHERE "%s"."%s" = "%s"."%s" %s`,
+			rel.Table,
+			rel.ForeignKey.PivotTable,
+			rel.Table,
+			rel.ForeignKey.Local,
+			rel.ForeignKey.PivotTable,
+			rel.ForeignKey.PivotRelated,
+			fromTable,
+			rel.ForeignKey.Parent,
+			rel.ForeignKey.PivotTable,
+			rel.ForeignKey.PivotLocal,
+			andRaw,
+		)
+	}
 	if subExists != "" {
 		selectSql += `AND EXISTS (` + subExists + `)`
 	}

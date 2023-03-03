@@ -6,15 +6,22 @@ import (
 )
 
 type ForeignKey struct {
-	Local  string
-	Parent string
+	Local        string
+	Parent       string
+	PivotLocal   string `json:"pivot_local"`
+	PivotTable   string `json:"pivot_table"`
+	PivotFields  Fields
+	PivotRelated string `json:"pivot_related"`
 }
 type Relation struct {
-	Type  string // 'one_to_one', 'many_to_many'
-	Name  string
-	Table string
+	Type       string // 'one_to_one', 'one_to_many', 'many_to_many'
+	Name       string
+	Table      string
+	SoftDelete bool
 
-	Fields    Fields
+	Fields Fields
+	Wheres Wheres
+
 	Relations Relations
 	Parent    *Relation
 
@@ -62,7 +69,10 @@ func (relation *Relation) Parse(config any) error {
 	if err != nil {
 		return err
 	}
-
+	err = utils.ParseMapKey(rel, "soft_delete", &relation.SoftDelete)
+	if err != nil {
+		relation.SoftDelete = false
+	}
 	if _, exists := rel["foreign_key"]; !exists {
 		return errors.New("you need to define foreign_key on relations")
 	}
@@ -71,14 +81,26 @@ func (relation *Relation) Parse(config any) error {
 	if err != nil || relation.ForeignKey.Local == "" || relation.ForeignKey.Parent == "" {
 		return errors.New("invalid relation foreign keys")
 	}
-
+	if relation.Type == "many_to_many" {
+		if fields, exists := rel["foreign_key"].(map[string]any)["pivot_fields"]; exists {
+			err = relation.ForeignKey.PivotFields.Parse(fields)
+			if err != nil {
+				return err
+			}
+		}
+	}
 	if _, exists := rel["fields"]; exists {
 		err = relation.Fields.Parse(rel["fields"])
 		if err != nil {
 			return err
 		}
 	}
-
+	if _, exists := rel["wheres"]; exists {
+		err = relation.Wheres.Parse(rel["wheres"])
+		if err != nil {
+			return err
+		}
+	}
 	if _, exists := rel["relations"]; exists {
 		err = relation.Relations.Parse(rel["relations"], relation)
 		if err != nil {
@@ -86,6 +108,17 @@ func (relation *Relation) Parse(config any) error {
 		}
 	}
 	return nil
+}
+
+func (relation *Relation) GetAllRelations() []*Relation {
+	var relations []*Relation
+	for _, rel := range relation.Relations {
+		relations = append(relations, rel)
+		for _, subRel := range rel.GetAllRelations() {
+			relations = append(relations, subRel)
+		}
+	}
+	return relations
 }
 
 func (relation *Relation) GetDependsRelations(table string) []*Relation {
@@ -102,19 +135,13 @@ func (relation *Relation) GetDependsRelations(table string) []*Relation {
 }
 
 func (relation *Relation) DependsOnTable(table string) bool {
-	for _, dependTable := range relation.GetDependenciesTables() {
-		if dependTable == table {
+	if relation.Table == table || relation.ForeignKey.PivotTable == table {
+		return true
+	}
+	for _, rel := range relation.GetAllRelations() {
+		if rel.DependsOnTable(table) {
 			return true
 		}
 	}
 	return false
-}
-
-func (relation *Relation) GetDependenciesTables() []string {
-	dependenciesTables := []string{relation.Table}
-	for _, rel := range relation.Relations {
-		dependenciesTables = append(dependenciesTables, rel.GetDependenciesTables()...)
-	}
-	dependenciesTables = utils.Unique(dependenciesTables)
-	return dependenciesTables
 }

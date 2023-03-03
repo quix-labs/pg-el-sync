@@ -9,17 +9,27 @@ import (
 type Fields types.Fields
 
 func (fields *Fields) asJsonBuildObjectQuery(table string, additional map[string]string) string {
-	var raw []string
+	parsedFields := fields.getParsedFields(table, additional)
+	var rawFields []string
+	for alias, raw := range parsedFields {
+		rawFields = append(rawFields, fmt.Sprintf("'%s',%s", alias, raw))
+	}
+
+	return "JSON_BUILD_OBJECT(" + strings.Join(rawFields, ",") + ")"
+}
+
+func (fields *Fields) getParsedFields(table string, additional map[string]string) map[string]string {
+	raw := map[string]string{}
+	if additional != nil {
+		raw = additional
+	}
 
 	for _, field := range fields.Simple {
-		raw = append(raw, fmt.Sprintf(`'%s',"%s"."%s"`, field.Alias, table, field.Field))
+		raw[field.Alias] = fmt.Sprintf(`"%s"."%s"`, table, field.Field)
 	}
 	for _, field := range fields.Scripted {
-		raw = append(raw, fmt.Sprintf(`'%s',%s`, field.Alias, field.Script))
-	}
-	for alias, field := range additional {
-		raw = append(raw, fmt.Sprintf(`'%s',%s`, alias, field))
+		raw[field.Alias] = strings.ReplaceAll(field.Script, "{{table}}", table)
 	}
 
-	return "JSON_BUILD_OBJECT(" + strings.Join(raw, ",") + ")"
+	return raw
 }

@@ -8,8 +8,10 @@ type InsertEvent struct {
 }
 
 type UpdateEvent struct {
-	Table     string
-	Reference string
+	Table                 string
+	Reference             string
+	SoftDeleted           bool
+	PreviouslySoftDeleted bool
 }
 
 type RelationUpdateEvent struct {

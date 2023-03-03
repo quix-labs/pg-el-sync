@@ -21,9 +21,10 @@ func (index *Index) GetSelectQuery() string {
 
 	fields := Fields(index.Fields)
 	query := fmt.Sprintf(
-		`SELECT %s AS "result", "%s"."id" AS "reference" FROM "%s" %s`,
+		`SELECT %s AS "result", "%s"."%s" AS "reference" FROM "%s" %s`,
 		fields.asJsonBuildObjectQuery(index.Table, additionalFields),
 		index.Table,
+		index.ReferenceField,
 		index.Table,
 		strings.Join(leftJoins, " "),
 	)
@@ -31,7 +32,6 @@ func (index *Index) GetSelectQuery() string {
 }
 
 func (index *Index) GetWhereRelationQuery(relationUpdates types.RelationsUpdate) string {
-	query := ""
 	var relationSelects []string
 
 	for relation, references := range relationUpdates {
@@ -39,13 +39,14 @@ func (index *Index) GetWhereRelationQuery(relationUpdates types.RelationsUpdate)
 		relationSelects = append(relationSelects, rel.GetReverseSelectQuery(index.Table, references, ""))
 	}
 
+	query := "WHERE ( "
 	for idx, relationSelect := range relationSelects {
 		if idx == 0 {
-			query += "WHERE EXISTS(" + relationSelect + ")"
+			query += " EXISTS (" + relationSelect + ")"
 		} else {
-			query += " OR EXISTS(" + relationSelect + ")"
+			query += " OR EXISTS (" + relationSelect + ")"
 		}
 	}
-
+	query += ")"
 	return query
 }

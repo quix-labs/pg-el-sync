@@ -18,6 +18,10 @@ type Fields struct {
 	Scripted []*ScriptedField
 }
 
+func (fields *Fields) Len() int {
+	return len(fields.Simple) + len(fields.Scripted)
+}
+
 func (fields *Fields) Parse(config any) error {
 	var sliceFields []any
 	err := utils.ParseMap(config, &sliceFields)

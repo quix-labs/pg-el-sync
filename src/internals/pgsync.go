@@ -6,6 +6,7 @@ import (
 	"go_pg_es_sync/internals/utils"
 	"go_pg_es_sync/publishers/elastic"
 	"go_pg_es_sync/subscribers/postgresql"
+	"time"
 )
 
 type PgSync struct {
@@ -72,7 +73,25 @@ func (pgSync *PgSync) Start() {
 			}
 		case types.UpdateEvent:
 			for _, index := range pgSync.getIndicesForTable(event.Table) {
-				index.WaitingEvents.Update.Append(&event)
+				if !index.SoftDelete {
+					index.WaitingEvents.Update.Append(&event)
+					continue
+				}
+				/**----SOFT DELETE------*/
+				if event.SoftDeleted && !event.PreviouslySoftDeleted {
+					index.WaitingEvents.Delete.Append(&types.DeleteEvent{
+						Table:     event.Table,
+						Reference: event.Reference,
+					})
+				} else if !event.SoftDeleted && event.PreviouslySoftDeleted {
+					index.WaitingEvents.Insert.Append(&types.InsertEvent{
+						Table:     event.Table,
+						Reference: event.Reference,
+					})
+				} else if !event.SoftDeleted && !event.PreviouslySoftDeleted {
+					index.WaitingEvents.Update.Append(&event)
+				}
+
 			}
 			for _, index := range pgSync.getIndicesDependsOnTable(event.Table) {
 				index.WaitingEvents.RelationsUpdate.Append(&types.RelationUpdateEvent{
@@ -108,8 +127,22 @@ func (pgSync *PgSync) GetPublisher(name string) (types.AbstractPublisher, error)
 	return publisher, nil
 }
 func (pgSync *PgSync) FullReindex() {
+	i := len(pgSync.indices)
+	finishedChan := make(chan *types.Index)
+
+	start := time.Now()
 	for _, index := range pgSync.indices {
-		index.IndexAllDocuments()
+		index := index
+		go func() {
+			index.IndexAllDocuments()
+			finishedChan <- &index
+		}()
+	}
+	for i > 0 {
+		idx := <-finishedChan
+		i--
+		end := time.Since(start).String()
+		fmt.Printf("Indexing %s finished in %s!\n", idx.Name, end)
 	}
 }
 
@@ -157,7 +190,7 @@ func (pgSync *PgSync) loadSubscribers() error {
 	for name, config := range pgSync.config.In {
 		var subscriber types.AbstractSubscriber
 		switch config["driver"] {
-		case "pg-trigger":
+		case "pgxpool-trigger":
 			subscriber = &postgresql.Subscriber{}
 		default:
 			return fmt.Errorf("invalid In Driver: %s", config["driver"])

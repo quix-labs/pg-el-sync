@@ -5,13 +5,13 @@ type AbstractSubscriber interface {
 	Listen()
 	Terminate()
 
-	InternalInit(*chan *interface{}, string)
+	InternalInit(eventChannel *chan *interface{}, name string)
 	InternalTerminate()
 	DispatchEvent(event *interface{})
 
 	GetAllRecordsForIndex(index *Index) <-chan Record
-	GetFullRecordsForIndex(references []string, index *Index) (map[string]map[string]interface{}, error)
-	GetFullRecordsForRelationUpdate(results RelationsUpdate, index *Index) (map[string]map[string]interface{}, error) //@TODO Yield by channel function
+	GetFullRecordsForIndex(references []string, index *Index) <-chan Record
+	GetFullRecordsForRelationUpdate(results RelationsUpdate, index *Index) <-chan Record
 }
 
 type Record struct {

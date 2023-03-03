@@ -13,8 +13,11 @@ type Index struct {
 	Table     string
 	Fields    Fields
 	Relations Relations
+	Wheres    Wheres
 
 	ReferenceField string
+	SoftDelete     bool //@TODO DELETE USE 'wheres' INSTEAD
+	Settings       map[string]any
 
 	Subscriber *AbstractSubscriber
 	Publishers []*AbstractPublisher
@@ -37,7 +40,6 @@ func (index *Index) Init(config map[string]interface{}) {
 		return
 	}
 
-	index.GetRelationsDependenciesTables()
 	index.Active = true
 
 	go index.asyncHandleInserts()
@@ -67,31 +69,26 @@ func (index *Index) asyncHandleInserts() {
 			}
 
 			results := index.WaitingEvents.Insert.Retrieve(index.ChunkSize)
-			indexedResults := map[string]*InsertEvent{}
-			var references []string
 
+			var references []string
 			for _, event := range results {
-				indexedResults[event.Reference] = event
 				references = append(references, event.Reference)
 			}
-
-			fullRecords, err := (*index.Subscriber).GetFullRecordsForIndex(references, index)
-			if err != nil {
-				fmt.Println("Error getting full record", err)
-				continue
+			insertRows := utils.ConcurrentSlice[*InsertsRow]{}
+			for row := range (*index.Subscriber).GetFullRecordsForIndex(references, index) {
+				insertRows.Append(&InsertsRow{Index: index.Name, Record: row.Data, Reference: row.Reference})
+				if insertRows.Len() >= index.ChunkSize {
+					rows := insertRows.Retrieve(index.ChunkSize)
+					for _, publisher := range index.Publishers {
+						(*publisher).Insert(rows)
+					}
+				}
 			}
-
-			var rows []*InsertsRow
-			for reference, record := range fullRecords {
-				rows = append(rows, &InsertsRow{
-					Reference: indexedResults[reference].Reference,
-					Index:     index.Name,
-					Record:    record,
-				})
-			}
-
-			for _, publisher := range index.Publishers {
-				(*publisher).Insert(rows)
+			if insertRows.Len() > 0 {
+				rows := insertRows.All()
+				for _, publisher := range index.Publishers {
+					(*publisher).Insert(rows)
+				}
 			}
 		}
 	}
@@ -107,31 +104,26 @@ func (index *Index) asyncHandleUpdates() {
 				continue
 			}
 			results := index.WaitingEvents.Update.Retrieve(index.ChunkSize)
-			indexedResults := map[string]*UpdateEvent{}
 			var references []string
 
 			for _, event := range results {
-				indexedResults[event.Reference] = event
 				references = append(references, event.Reference)
 			}
-
-			fullRecords, err := (*index.Subscriber).GetFullRecordsForIndex(references, index)
-			if err != nil {
-				fmt.Println("Error getting full record", err)
-				continue
+			updateRows := utils.ConcurrentSlice[*UpdateRow]{}
+			for row := range (*index.Subscriber).GetFullRecordsForIndex(references, index) {
+				updateRows.Append(&UpdateRow{Index: index.Name, Record: row.Data, Reference: row.Reference})
+				if updateRows.Len() >= index.ChunkSize {
+					rows := updateRows.Retrieve(index.ChunkSize)
+					for _, publisher := range index.Publishers {
+						(*publisher).Update(rows)
+					}
+				}
 			}
-
-			var rows []*UpdateRow
-			for reference, record := range fullRecords {
-				rows = append(rows, &UpdateRow{
-					Reference: indexedResults[reference].Reference,
-					Index:     index.Name,
-					Record:    record,
-				})
-			}
-
-			for _, publisher := range index.Publishers {
-				(*publisher).Update(rows)
+			if updateRows.Len() > 0 {
+				rows := updateRows.All()
+				for _, publisher := range index.Publishers {
+					(*publisher).Update(rows)
+				}
 			}
 		}
 	}
@@ -172,34 +164,28 @@ func (index *Index) asyncHandleRelationsUpdates() {
 				continue
 			}
 			results := index.WaitingEvents.RelationsUpdate.Retrieve(index.ChunkSize)
-
 			indexedResults := RelationsUpdate{}
-
 			for _, event := range results {
 				for _, relation := range index.GetDependRelations(event.Table) {
 					indexedResults[relation] = utils.Unique(append(indexedResults[relation], event.Reference))
 				}
 			}
 
-			fullRecords, err := (*index.Subscriber).GetFullRecordsForRelationUpdate(indexedResults, index)
-			if err != nil {
-				fmt.Println("Error getting full record for update relation", err)
-				continue
-			}
-			var rows utils.ConcurrentSlice[*UpdateRow]
-			for reference, record := range fullRecords {
-				rows.Append(&UpdateRow{
-					Reference: reference,
-					Index:     index.Name,
-					Record:    record,
-				})
-			}
-			fmt.Println(len(fullRecords))
+			updateRows := utils.ConcurrentSlice[*UpdateRow]{}
+			for row := range (*index.Subscriber).GetFullRecordsForRelationUpdate(indexedResults, index) {
+				updateRows.Append(&UpdateRow{Index: index.Name, Record: row.Data, Reference: row.Reference})
 
-			for rows.Len() > 0 {
-				chunk := rows.Retrieve(index.ChunkSize)
+				if updateRows.Len() >= index.ChunkSize {
+					rows := updateRows.Retrieve(index.ChunkSize)
+					for _, publisher := range index.Publishers {
+						(*publisher).Update(rows)
+					}
+				}
+			}
+			if updateRows.Len() > 0 {
+				rows := updateRows.All()
 				for _, publisher := range index.Publishers {
-					(*publisher).Update(chunk)
+					(*publisher).Update(rows)
 				}
 			}
 		}
@@ -214,11 +200,10 @@ func (index *Index) IndexAllDocuments() {
 	for row := range (*index.Subscriber).GetAllRecordsForIndex(index) {
 		insertRows.Append(&InsertsRow{Index: index.Name, Record: row.Data, Reference: row.Reference})
 		if insertRows.Len() >= index.ChunkSize {
-			rows := insertRows.All()
+			rows := insertRows.Retrieve(index.ChunkSize)
 			for _, publisher := range index.Publishers {
 				(*publisher).Insert(rows)
 			}
-			insertRows.Clear()
 		}
 	}
 	if insertRows.Len() > 0 {
@@ -237,6 +222,10 @@ func (index *Index) Parse(config map[string]interface{}) error {
 	if err != nil {
 		index.Logger.Fatal().Err(err).Msg("Invalid name for mapping")
 	}
+	err = utils.ParseMapKey(config, "settings", &index.Settings)
+	if err != nil {
+		index.Logger.Info().Msg("Invalid settings for mapping")
+	}
 	err = utils.ParseMapKey(config, "table", &index.Table)
 	if err != nil {
 		index.Logger.Fatal().Err(err).Msg("Invalid table for mapping")
@@ -245,6 +234,11 @@ func (index *Index) Parse(config map[string]interface{}) error {
 	if err != nil {
 		index.ReferenceField = "id"
 		index.Logger.Info().Msg("Invalid or unspecified reference_field for mapping, default to id")
+	}
+	err = utils.ParseMapKey(config, "soft_delete", &index.SoftDelete)
+	if err != nil {
+		index.SoftDelete = false
+		index.Logger.Info().Msg("Invalid or unspecified soft_delete for mapping, default to false")
 	}
 	err = utils.ParseMapKey(config, "chunk_size", &index.ChunkSize)
 	if err != nil {
@@ -258,19 +252,25 @@ func (index *Index) Parse(config map[string]interface{}) error {
 			index.Logger.Fatal().Err(err).Msg("Invalid table for mapping")
 		}
 	}
-
+	if _, exists := config["wheres"]; exists {
+		err = index.Wheres.Parse(config["wheres"])
+		if err != nil {
+			index.Logger.Fatal().Err(err).Msg("Invalid wheres for mapping")
+		}
+	}
 	if _, exists := config["relations"]; exists {
 		err = index.Relations.Parse(config["relations"], nil)
 		if err != nil {
 			index.Logger.Fatal().Err(err).Msg("Invalid table for mapping")
 		}
 	}
+
 	return nil
 }
 
 func (index *Index) DependsOnTable(table string) bool {
-	for _, dependTable := range index.GetRelationsDependenciesTables() {
-		if dependTable == table {
+	for _, relation := range index.GetAllRelations() {
+		if relation.DependsOnTable(table) {
 			return true
 		}
 	}
@@ -285,17 +285,14 @@ func (index *Index) GetDependRelations(table string) []*Relation {
 	}
 	return dependsRelations
 }
-func (index *Index) GetRelationsDependenciesTables() []string {
-	var dependenciesTables []string
+
+func (index *Index) GetAllRelations() []*Relation {
+	var relations []*Relation
 	for _, rel := range index.Relations {
-		for _, table := range rel.GetDependenciesTables() {
-			if table == index.Table {
-				continue
-			}
-			dependenciesTables = append(dependenciesTables, table)
+		relations = append(relations, rel)
+		for _, subRel := range rel.GetAllRelations() {
+			relations = append(relations, subRel)
 		}
 	}
-	dependenciesTables = utils.Unique(dependenciesTables)
-
-	return dependenciesTables
+	return relations
 }

@@ -18,15 +18,16 @@ type Relation struct {
 	Name       string
 	Table      string
 	SoftDelete bool
+	Fields     Fields
 
-	Fields Fields
-	Wheres Wheres
-
+	Wheres    Wheres
 	Relations Relations
-	Parent    *Relation
 
-	UniqueKey  string
+	Parent    *Relation
+	UniqueKey string
+
 	ForeignKey ForeignKey
+	UniqueName string
 }
 type Relations []*Relation
 
@@ -39,7 +40,7 @@ func (relations *Relations) Parse(config any, parent *Relation) error {
 
 	for _, relation := range tempRelations {
 		rel := &Relation{}
-		err = rel.Parse(relation)
+		err = rel.Parse(relation, parent)
 		if err != nil {
 			return err
 		}
@@ -51,7 +52,14 @@ func (relations *Relations) Parse(config any, parent *Relation) error {
 	return nil
 }
 
-func (relation *Relation) Parse(config any) error {
+func (relation *Relation) getUniqueName() string {
+	name := relation.Name
+	if relation.Parent != nil {
+		name = relation.Parent.getUniqueName() + "_" + name
+	}
+	return name
+}
+func (relation *Relation) Parse(config any, parent *Relation) error {
 	var rel map[string]any
 	err := utils.ParseMap(config, &rel)
 	if err != nil {
@@ -107,6 +115,10 @@ func (relation *Relation) Parse(config any) error {
 			return errors.New("invalid table for mapping")
 		}
 	}
+	if parent != nil {
+		relation.Parent = parent
+	}
+	relation.UniqueName = relation.getUniqueName()
 	return nil
 }
 

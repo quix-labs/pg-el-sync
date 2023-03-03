@@ -3,24 +3,25 @@ package types
 import "go_pg_es_sync/internals/utils"
 
 type InsertEvent struct {
-	Table     string
+	Index     string
 	Reference string
 }
 
 type UpdateEvent struct {
-	Table                 string
+	Index                 string
 	Reference             string
 	SoftDeleted           bool
 	PreviouslySoftDeleted bool
 }
 
 type RelationUpdateEvent struct {
-	Table     string
+	Index     string
+	Relation  string
 	Reference string
 }
 
 type DeleteEvent struct {
-	Table     string
+	Index     string
 	Reference string
 }
 

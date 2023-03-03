@@ -16,7 +16,6 @@ type Index struct {
 	Wheres    Wheres
 
 	ReferenceField string
-	SoftDelete     bool //@TODO DELETE USE 'wheres' INSTEAD
 	Settings       map[string]any
 
 	Subscriber *AbstractSubscriber
@@ -157,7 +156,7 @@ func (index *Index) asyncHandleRelationsUpdates() {
 	lastFetch := time.Now()
 	for range time.Tick(time.Millisecond * 100) {
 		millisecondUntilLastFetch := time.Now().Sub(lastFetch).Milliseconds()
-		for index.WaitingEvents.RelationsUpdate.Len() >= index.ChunkSize || millisecondUntilLastFetch > 500 {
+		for index.WaitingEvents.RelationsUpdate.Len() >= index.ChunkSize || millisecondUntilLastFetch > 1000 {
 			lastFetch = time.Now()
 			millisecondUntilLastFetch = 0
 			if index.WaitingEvents.RelationsUpdate.Len() == 0 {
@@ -166,8 +165,11 @@ func (index *Index) asyncHandleRelationsUpdates() {
 			results := index.WaitingEvents.RelationsUpdate.Retrieve(index.ChunkSize)
 			indexedResults := RelationsUpdate{}
 			for _, event := range results {
-				for _, relation := range index.GetDependRelations(event.Table) {
-					indexedResults[relation] = utils.Unique(append(indexedResults[relation], event.Reference))
+				//@TODO Use map[string:indice.UniqueName]*Relation instead of slice
+				for _, relation := range index.GetAllRelations() {
+					if relation.UniqueName == event.Relation {
+						indexedResults[relation] = utils.Unique(append(indexedResults[relation], event.Reference))
+					}
 				}
 			}
 
@@ -234,11 +236,6 @@ func (index *Index) Parse(config map[string]interface{}) error {
 	if err != nil {
 		index.ReferenceField = "id"
 		index.Logger.Info().Msg("Invalid or unspecified reference_field for mapping, default to id")
-	}
-	err = utils.ParseMapKey(config, "soft_delete", &index.SoftDelete)
-	if err != nil {
-		index.SoftDelete = false
-		index.Logger.Info().Msg("Invalid or unspecified soft_delete for mapping, default to false")
 	}
 	err = utils.ParseMapKey(config, "chunk_size", &index.ChunkSize)
 	if err != nil {

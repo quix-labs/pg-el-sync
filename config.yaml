@@ -27,7 +27,6 @@ mappings:
   #    fields: [ 'id','name' ]
   - name: posts
     table: posts
-    soft_delete: true #@TODO DELETE USE wheres INSTEAD
     wheres:
       - column: deleted_at
         condition: "IS NULL"

@@ -45,6 +45,7 @@ func (pgSync *PgSync) Init(config *Config) error {
 
 func (pgSync *PgSync) Start() {
 	for _, subscriber := range pgSync.GetSubscribers() {
+		subscriber.PrepareListen(pgSync.getIndicesForSubscriber(subscriber))
 		go subscriber.Listen()
 	}
 
@@ -52,40 +53,34 @@ func (pgSync *PgSync) Start() {
 		notification := <-pgSync.eventChannel
 		switch event := (*notification).(type) {
 		case types.DeleteEvent:
-			for _, index := range pgSync.getIndicesForTable(event.Table) {
-				index.WaitingEvents.Delete.Append(&event)
-			}
-			for _, index := range pgSync.getIndicesDependsOnTable(event.Table) {
-				index.WaitingEvents.RelationsUpdate.Append(&types.RelationUpdateEvent{
-					Table:     event.Table,
-					Reference: event.Reference,
-				})
+			//@TODO use map[string:index.Name]*Indice instead of slice
+			for _, index := range pgSync.indices {
+				if index.Name == event.Index {
+					index.WaitingEvents.Delete.Append(&event)
+				}
 			}
 		case types.InsertEvent:
-			for _, index := range pgSync.getIndicesForTable(event.Table) {
-				index.WaitingEvents.Insert.Append(&event)
-			}
-			for _, index := range pgSync.getIndicesDependsOnTable(event.Table) {
-				index.WaitingEvents.RelationsUpdate.Append(&types.RelationUpdateEvent{
-					Table:     event.Table,
-					Reference: event.Reference,
-				})
+			//@TODO use map[string:index.Name]*Indice instead of slice
+			for _, index := range pgSync.indices {
+				if index.Name == event.Index {
+					index.WaitingEvents.Insert.Append(&event)
+				}
 			}
 		case types.UpdateEvent:
-			for _, index := range pgSync.getIndicesForTable(event.Table) {
-				if !index.SoftDelete {
-					index.WaitingEvents.Update.Append(&event)
+			//@TODO use map[string:index.Name]*Indice instead of slice
+			for _, index := range pgSync.indices {
+				if index.Name != event.Index {
 					continue
 				}
 				/**----SOFT DELETE------*/
 				if event.SoftDeleted && !event.PreviouslySoftDeleted {
 					index.WaitingEvents.Delete.Append(&types.DeleteEvent{
-						Table:     event.Table,
+						Index:     event.Index,
 						Reference: event.Reference,
 					})
 				} else if !event.SoftDeleted && event.PreviouslySoftDeleted {
 					index.WaitingEvents.Insert.Append(&types.InsertEvent{
-						Table:     event.Table,
+						Index:     event.Index,
 						Reference: event.Reference,
 					})
 				} else if !event.SoftDeleted && !event.PreviouslySoftDeleted {
@@ -93,11 +88,12 @@ func (pgSync *PgSync) Start() {
 				}
 
 			}
-			for _, index := range pgSync.getIndicesDependsOnTable(event.Table) {
-				index.WaitingEvents.RelationsUpdate.Append(&types.RelationUpdateEvent{
-					Table:     event.Table,
-					Reference: event.Reference,
-				})
+		case types.RelationUpdateEvent:
+			//@TODO use map[string:index.Name]*Indice instead of slice
+			for _, index := range pgSync.indices {
+				if index.Name == event.Index {
+					index.WaitingEvents.RelationsUpdate.Append(&event)
+				}
 			}
 		}
 	}
@@ -220,8 +216,7 @@ func (pgSync *PgSync) initSubscribers() error {
 		subscribersConfig := utils.CopyableMap(pgSync.config.In[name]).DeepCopy()
 		delete(subscribersConfig, "driver")
 		subscriber.InternalInit(&pgSync.eventChannel, name)
-		subs := pgSync.getIndicesForSubscriber(subscriber)
-		subscriber.Init(subscribersConfig, subs)
+		subscriber.Init(subscribersConfig)
 	}
 	return nil
 }
@@ -235,24 +230,7 @@ func (pgSync *PgSync) initPublishers() error {
 	}
 	return nil
 }
-func (pgSync *PgSync) getIndicesForTable(table string) []types.Index {
-	var indices []types.Index
-	for _, index := range pgSync.indices {
-		if index.Table == table {
-			indices = append(indices, index)
-		}
-	}
-	return indices
-}
-func (pgSync *PgSync) getIndicesDependsOnTable(table string) []types.Index {
-	var indices []types.Index
-	for _, index := range pgSync.indices {
-		if index.DependsOnTable(table) {
-			indices = append(indices, index)
-		}
-	}
-	return indices
-}
+
 func (pgSync *PgSync) getIndicesForSubscriber(subscriber types.AbstractSubscriber) []types.Index {
 	var indices []types.Index
 	for _, index := range pgSync.indices {

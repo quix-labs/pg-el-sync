@@ -30,7 +30,7 @@ type Subscriber struct {
 	triggersNames    []string
 }
 
-func (pg *Subscriber) Init(config map[string]any, indices []types.Index) {
+func (pg *Subscriber) Init(config map[string]any) {
 	connConf, err := pgxpool.ParseConfig("")
 	if err != nil {
 		pg.Logger.Fatal().Err(err)
@@ -48,8 +48,8 @@ func (pg *Subscriber) Init(config map[string]any, indices []types.Index) {
 		pg.Logger.Fatal().Err(err).Msgf("Unable to connect to database: %v", err)
 	}
 	pg.Logger.Printf("Successfully connected to %s@%s/%s", config["username"], config["host"], config["database"])
-	pg.prepare(indices)
 }
+
 func (pg *Subscriber) Listen() {
 	persistentConn, err := pg.conn.Acquire(context.Background())
 	if err != nil {
@@ -77,8 +77,10 @@ func (pg *Subscriber) Listen() {
 
 func (pg *Subscriber) parseNotification(notification *pgconn.Notification) (*interface{}, error) {
 	var res struct {
+		Type           string `json:"type"`
+		Index          string `json:"index"`
+		Relation       string `json:"relation"`
 		Action         string `json:"action"`
-		Table          string `json:"table"`
 		Reference      string `json:"reference"`
 		SoftDeleted    bool   `json:"soft_deleted"`
 		OldSoftDeleted bool   `json:"old_soft_deleted"`
@@ -88,28 +90,42 @@ func (pg *Subscriber) parseNotification(notification *pgconn.Notification) (*int
 		return nil, err
 	}
 	var event interface{}
-	switch res.Action {
-	case "insert":
-		event = types.InsertEvent{
-			Table:     res.Table,
-			Reference: res.Reference,
+
+	if res.Type == "table" {
+		switch res.Action {
+		case "insert":
+			event = types.InsertEvent{
+				Index:     res.Index,
+				Reference: res.Reference,
+			}
+		case "update":
+			event = types.UpdateEvent{
+				Index:                 res.Index,
+				Reference:             res.Reference,
+				SoftDeleted:           res.SoftDeleted,
+				PreviouslySoftDeleted: res.OldSoftDeleted,
+			}
+		case "delete":
+			event = types.DeleteEvent{
+				Index:     res.Index,
+				Reference: res.Reference,
+			}
+		default:
+			return nil, fmt.Errorf("unable to parse event with action: %s ", res.Action)
 		}
-	case "update":
-		event = types.UpdateEvent{
-			Table:                 res.Table,
-			Reference:             res.Reference,
-			SoftDeleted:           res.SoftDeleted,
-			PreviouslySoftDeleted: res.OldSoftDeleted,
-		}
-	case "delete":
-		event = types.DeleteEvent{
-			Table:     res.Table,
-			Reference: res.Reference,
-		}
-	default:
-		return nil, fmt.Errorf("Unable to parse event with action: %s ", res.Action)
+		return &event, nil
 	}
-	return &event, nil
+
+	if res.Type == "relation" {
+		event = types.RelationUpdateEvent{
+			Index:     res.Index,
+			Relation:  res.Relation,
+			Reference: res.Reference,
+		}
+		return &event, nil
+	}
+	return nil, fmt.Errorf("unable to parse event")
+
 }
 
 func (pg *Subscriber) Terminate() {
@@ -117,7 +133,7 @@ func (pg *Subscriber) Terminate() {
 }
 
 // -----------------------------------------------PREPARATION------------------------------------------------
-func (pg *Subscriber) prepare(indices []types.Index) {
+func (pg *Subscriber) PrepareListen(indices []types.Index) {
 	for _, index := range indices {
 		pg.initIndexListener(&index)
 		for _, relation := range index.GetAllRelations() {
@@ -140,8 +156,9 @@ CREATE OR REPLACE FUNCTION "%s"() RETURNS trigger AS $trigger$
 BEGIN
   IF TG_OP <> 'UPDATE' OR NEW IS DISTINCT FROM OLD THEN
     PERFORM pg_notify('%s', json_build_object(
+		'type', 'table',
+		'index', '%s',
         'action', LOWER(TG_OP),
-        'table',TG_TABLE_NAME,
         'reference',COALESCE(NEW."%s", OLD."%s")::TEXT,
         'soft_deleted',NOT (%s),
         'old_soft_deleted',NOT (%s)
@@ -150,7 +167,7 @@ BEGIN
   RETURN COALESCE(NEW, OLD);
 END;
 $trigger$ LANGUAGE plpgsql VOLATILE;
-`, functionName, EventName, index.ReferenceField, index.ReferenceField, whereOkSql, oldWhereOkSql))
+`, functionName, EventName, index.Name, index.ReferenceField, index.ReferenceField, whereOkSql, oldWhereOkSql))
 	if err != nil {
 		pg.Logger.Printf("Error create trigger function: %v\n", err)
 		os.Exit(1)
@@ -169,34 +186,27 @@ $trigger$ LANGUAGE plpgsql VOLATILE;
 	}
 }
 func (pg *Subscriber) initRelationListener(relation *types.Relation, index *types.Index) {
-	whereOkSql, oldWhereOkSql := "true", "true"
-	if len(relation.Wheres) > 0 {
-		wheres := Wheres(relation.Wheres)
-		whereOkSql = "(" + wheres.GetConditionSql("NEW", true) + ")"
-		oldWhereOkSql = "(" + wheres.GetConditionSql("OLD", true) + ")"
-	}
-	functionName := NotifyTriggerFunctionPrefix + "_rel_" + index.Name + "_" + relation.Name + "_" + relation.Table
+	functionName := NotifyTriggerFunctionPrefix + "_rel_" + relation.UniqueName
 	pg.triggerFuncNames = append(pg.triggerFuncNames, functionName)
 	_, err := pg.conn.Exec(context.Background(), fmt.Sprintf(`
 CREATE OR REPLACE FUNCTION "%s"() RETURNS trigger AS $trigger$
 BEGIN
   IF TG_OP <> 'UPDATE' OR NEW IS DISTINCT FROM OLD THEN
     PERFORM pg_notify('%s', json_build_object(
-        'action', LOWER(TG_OP),
-        'table',TG_TABLE_NAME,
-        'reference',COALESCE(NEW."%s", OLD."%s")::TEXT,
-        'soft_deleted',NOT (%s),
-        'old_soft_deleted', NOT (%s)
+		'type', 'relation',
+        'index', '%s',
+        'relation','%s',
+        'reference',COALESCE(NEW."%s", OLD."%s")::TEXT
     )::TEXT);
   END IF;
   RETURN COALESCE(NEW, OLD);
 END;
 $trigger$ LANGUAGE plpgsql VOLATILE;
-`, functionName, EventName, relation.ForeignKey.Local, relation.ForeignKey.Local, whereOkSql, oldWhereOkSql))
+`, functionName, EventName, index.Name, relation.UniqueName, relation.ForeignKey.Local, relation.ForeignKey.Local))
 	if err != nil {
 		pg.Logger.Fatal().Msgf("Error create trigger function: %v", err)
 	}
-	triggerName := "pgsync_rel_" + index.Name + "_" + relation.Name + "_" + relation.Table
+	triggerName := "pgsync_rel_" + relation.UniqueName
 	sql := fmt.Sprintf(
 		`CREATE OR REPLACE TRIGGER %s AFTER DELETE OR UPDATE OR INSERT ON %s FOR EACH ROW EXECUTE PROCEDURE %s();`,
 		triggerName,

@@ -308,13 +308,19 @@ func (pg *Subscriber) GetAllRecordsForIndex(index *types.Index) <-chan types.Rec
 	return pg.getQueryRecords(query, index, wheresSqlRaw != "")
 }
 func (pg *Subscriber) GetFullRecordsForIndex(references []string, index *types.Index) <-chan types.Record {
-	sqlQuery := fmt.Sprintf(
-		`%s WHERE "%s"."%s" IN (%s)`, pg.getSelectQuery(index),
-		index.Table,
-		index.ReferenceField,
-		strings.Join(references, ","),
-	)
-	return pg.getQueryRecords(sqlQuery, index, true)
+	wheresSqlRaw := pg.GetWhereQuery(index)
+	query := pg.getSelectQuery(index) + " " + wheresSqlRaw
+	if wheresSqlRaw != "" {
+		query += fmt.Sprintf(
+			` AND "%s"."%s" IN (%s)`, index.Table, index.ReferenceField, strings.Join(references, ","),
+		)
+	} else {
+		query += fmt.Sprintf(
+			`WHERE "%s"."%s" IN (%s)`, index.Table, index.ReferenceField, strings.Join(references, ","),
+		)
+	}
+
+	return pg.getQueryRecords(query, index, true)
 }
 
 func (pg *Subscriber) GetFullRecordsForRelationUpdate(relationUpdates types.RelationsUpdate, idx *types.Index) <-chan types.Record {
@@ -323,7 +329,17 @@ func (pg *Subscriber) GetFullRecordsForRelationUpdate(relationUpdates types.Rela
 	go func() {
 		index := Index(*idx)
 		var getRecords = func(relationUpdates types.RelationsUpdate) {
-			sqlQuery := index.GetSelectQuery() + " " + index.GetWhereRelationQuery(relationUpdates)
+			wheresSqlRaw := pg.GetWhereQuery(idx)
+			wheresRelationRaw := index.GetWhereRelationQuery(relationUpdates)
+
+			sqlQuery := ""
+			if wheresSqlRaw == "" {
+				sqlQuery = index.GetSelectQuery() + " " + wheresRelationRaw
+			} else {
+				wheresRelationRaw = strings.TrimPrefix(wheresRelationRaw, "WHERE ")
+				wheresRelationRaw = "AND " + wheresRelationRaw
+				sqlQuery = index.GetSelectQuery() + " " + wheresSqlRaw + " " + wheresRelationRaw
+			}
 			for row := range pg.getQueryRecords(sqlQuery, idx, true) {
 				ch <- row
 			}
@@ -397,6 +413,7 @@ func (pg *Subscriber) getQueryRecords(query string, index *types.Index, useAnd b
 			)
 			rows, err := pg.conn.Query(context.Background(), query)
 			if err != nil {
+				fmt.Println(query)
 				pg.Logger.Printf("Cannot execute query: %s", err)
 			}
 			for rows.Next() {

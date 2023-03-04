@@ -23,7 +23,7 @@ func (wheres *Wheres) GetConditionSql(table string, stripQuote bool) string {
 func (wheres *Wheres) GetWhereSql(table string) string {
 	sql := wheres.GetConditionSql(table, false)
 	if sql != "" {
-		return "WHERE " + sql
+		return "WHERE (" + sql + ")"
 	}
 	return ""
 }

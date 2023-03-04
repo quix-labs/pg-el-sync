@@ -288,8 +288,8 @@ $trigger$ LANGUAGE plpgsql VOLATILE;
 func (pg *Subscriber) GetAllRecordsForIndex(index *types.Index) <-chan types.Record {
 	wheresSqlRaw := pg.GetWhereQuery(index)
 	query := pg.getSelectQuery(index) + " " + wheresSqlRaw
-	fmt.Println(query)
-	//@TODO Use materialized view for performance
+
+	//@TODO Clean code
 	materializedViewName := "pgsync_temp_view_" + index.Name
 	_, err := pg.conn.Exec(context.Background(), fmt.Sprintf(`DROP MATERIALIZED VIEW IF EXISTS "%s"."%s"`, SchemaName, materializedViewName))
 	if err != nil {
@@ -300,9 +300,9 @@ func (pg *Subscriber) GetAllRecordsForIndex(index *types.Index) <-chan types.Rec
 		pg.Logger.Fatal().Msgf("Error create trigger: %v", err)
 	}
 
-	query = "SELECT * FROM " + materializedViewName
+	query = "SELECT * FROM " + SchemaName + "." + materializedViewName
 	index.ReferenceField = "reference"
-	index.Table = materializedViewName
+	index.Table = SchemaName + `"."` + materializedViewName //@TODO Clean code
 	return pg.getQueryRecords(query, index, false)
 
 	return pg.getQueryRecords(query, index, wheresSqlRaw != "")

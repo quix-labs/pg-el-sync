@@ -16,7 +16,7 @@ RUN mkdir -p /src
 WORKDIR /src
 
 # Copy files into application's folder
-COPY ./src .
+COPY ../src .
 
 # Install the dependencies
 RUN go mod download

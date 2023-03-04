@@ -193,7 +193,6 @@ func (index *Index) asyncHandleRelationsUpdates() {
 //------------------PREPARATION FUNCTIONS---------------------------------------
 
 func (index *Index) IndexAllDocuments() {
-	fmt.Println(index.GetAllRelations())
 	fmt.Printf("Index all documents for %s\n", index.Name)
 	insertRows := utils.ConcurrentSlice[*InsertsRow]{}
 	for row := range (*index.Subscriber).GetAllRecordsForIndex(index) {

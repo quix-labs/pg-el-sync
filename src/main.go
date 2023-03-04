@@ -15,7 +15,7 @@ func main() {
 	}
 
 	config := &internals.Config{}
-	err := config.LoadFromYaml("./config.yaml")
+	err := config.LoadFromYaml("/app/config.yaml")
 	if err != nil {
 		log.Fatal(err)
 	}

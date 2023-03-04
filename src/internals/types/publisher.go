@@ -1,7 +1,7 @@
 package types
 
 type AbstractPublisher interface {
-	Init(config map[string]any, Indices []Index)
+	Init(config map[string]any, Indices []*Index)
 	Terminate()
 
 	InternalInit(name string)

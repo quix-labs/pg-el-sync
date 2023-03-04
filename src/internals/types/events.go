@@ -18,6 +18,7 @@ type RelationUpdateEvent struct {
 	Index     string
 	Relation  string
 	Reference string
+	Pivot     bool
 }
 
 type DeleteEvent struct {

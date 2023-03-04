@@ -29,9 +29,11 @@ type Relation struct {
 	ForeignKey ForeignKey
 	UniqueName string
 }
-type Relations []*Relation
+type Relations map[string]*Relation
 
 func (relations *Relations) Parse(config any, parent *Relation) error {
+	*relations = make(map[string]*Relation)
+
 	var tempRelations []map[string]any
 	err := utils.ParseMap(config, &tempRelations)
 	if err != nil {
@@ -47,7 +49,7 @@ func (relations *Relations) Parse(config any, parent *Relation) error {
 		if parent != nil {
 			rel.Parent = parent
 		}
-		*relations = append(*relations, rel)
+		(*relations)[rel.UniqueName] = rel
 	}
 	return nil
 }
@@ -122,38 +124,13 @@ func (relation *Relation) Parse(config any, parent *Relation) error {
 	return nil
 }
 
-func (relation *Relation) GetAllRelations() []*Relation {
-	var relations []*Relation
-	for _, rel := range relation.Relations {
-		relations = append(relations, rel)
-		for _, subRel := range rel.GetAllRelations() {
-			relations = append(relations, subRel)
+func (relation *Relation) GetAllRelations() Relations {
+	relations := make(Relations)
+	for relationName, rel := range relation.Relations {
+		relations[relationName] = rel
+		for subRelName, subRel := range rel.GetAllRelations() {
+			relations[subRelName] = subRel
 		}
 	}
 	return relations
-}
-
-func (relation *Relation) GetDependsRelations(table string) []*Relation {
-	var dependsRelations []*Relation
-	if (relation.Table) == table {
-		dependsRelations = append(dependsRelations, relation)
-	}
-	for _, rel := range relation.Relations {
-		if rel.DependsOnTable(table) {
-			dependsRelations = append(dependsRelations, rel.GetDependsRelations(table)...)
-		}
-	}
-	return dependsRelations
-}
-
-func (relation *Relation) DependsOnTable(table string) bool {
-	if relation.Table == table || relation.ForeignKey.PivotTable == table {
-		return true
-	}
-	for _, rel := range relation.GetAllRelations() {
-		if rel.DependsOnTable(table) {
-			return true
-		}
-	}
-	return false
 }

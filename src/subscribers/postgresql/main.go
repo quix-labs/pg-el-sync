@@ -21,13 +21,12 @@ const (
 	EventName                   = "pgsync_event"
 	NotifyTriggerFunctionPrefix = "pgsync_trigger"
 	MaxRelationsFilter          = 50
+	SchemaName                  = "pgsync"
 )
 
 type Subscriber struct {
 	subscribers.Subscriber
-	conn             *pgxpool.Pool
-	triggerFuncNames []string
-	triggersNames    []string
+	conn *pgxpool.Pool
 }
 
 func (pg *Subscriber) Init(config map[string]any) {
@@ -46,6 +45,10 @@ func (pg *Subscriber) Init(config map[string]any) {
 
 	if pg.conn, err = pgxpool.NewWithConfig(context.TODO(), connConf); err != nil {
 		pg.Logger.Fatal().Err(err).Msgf("Unable to connect to database: %v", err)
+	}
+	_, err = pg.conn.Exec(context.Background(), fmt.Sprintf(`DROP SCHEMA IF EXISTS "%s" CASCADE; CREATE SCHEMA "%s"`, SchemaName, SchemaName))
+	if err != nil {
+		pg.Logger.Fatal().Err(err).Msg("Error create schema")
 	}
 	pg.Logger.Printf("Successfully connected to %s@%s/%s", config["username"], config["host"], config["database"])
 }
@@ -84,6 +87,10 @@ func (pg *Subscriber) parseNotification(notification *pgconn.Notification) (*int
 		Reference      string `json:"reference"`
 		SoftDeleted    bool   `json:"soft_deleted"`
 		OldSoftDeleted bool   `json:"old_soft_deleted"`
+		Local          string `json:"local"`
+		OldLocal       string `json:"old_local"`
+		Related        string `json:"related"`
+		OldRelated     string `json:"old_related"`
 	}
 	err := json.Unmarshal([]byte(notification.Payload), &res)
 	if err != nil {
@@ -124,6 +131,23 @@ func (pg *Subscriber) parseNotification(notification *pgconn.Notification) (*int
 		}
 		return &event, nil
 	}
+	if res.Type == "relation_pivot" {
+		event = types.RelationUpdateEvent{
+			Index:     res.Index,
+			Relation:  res.Relation,
+			Reference: res.Local,
+			Pivot:     true,
+		}
+		if res.OldRelated != "" && res.OldRelated != res.Related {
+			event = types.RelationUpdateEvent{
+				Index:     res.Index,
+				Relation:  res.Relation,
+				Reference: res.OldLocal,
+				Pivot:     true,
+			}
+		}
+		return &event, nil
+	}
 	return nil, fmt.Errorf("unable to parse event")
 
 }
@@ -133,11 +157,12 @@ func (pg *Subscriber) Terminate() {
 }
 
 // -----------------------------------------------PREPARATION------------------------------------------------
-func (pg *Subscriber) PrepareListen(indices []types.Index) {
+
+func (pg *Subscriber) PrepareListen(indices []*types.Index) {
 	for _, index := range indices {
-		pg.initIndexListener(&index)
+		pg.initIndexListener(index)
 		for _, relation := range index.GetAllRelations() {
-			pg.initRelationListener(relation, &index)
+			pg.initRelationListener(relation, index)
 		}
 	}
 }
@@ -150,9 +175,8 @@ func (pg *Subscriber) initIndexListener(index *types.Index) {
 		oldWhereOkSql = "(" + wheres.GetConditionSql("OLD", true) + ")"
 	}
 	functionName := NotifyTriggerFunctionPrefix + "_" + index.Table
-	pg.triggerFuncNames = append(pg.triggerFuncNames, functionName)
 	_, err := pg.conn.Exec(context.Background(), fmt.Sprintf(`
-CREATE OR REPLACE FUNCTION "%s"() RETURNS trigger AS $trigger$
+CREATE OR REPLACE FUNCTION "%s"."%s"() RETURNS trigger AS $trigger$
 BEGIN
   IF TG_OP <> 'UPDATE' OR NEW IS DISTINCT FROM OLD THEN
     PERFORM pg_notify('%s', json_build_object(
@@ -167,19 +191,19 @@ BEGIN
   RETURN COALESCE(NEW, OLD);
 END;
 $trigger$ LANGUAGE plpgsql VOLATILE;
-`, functionName, EventName, index.Name, index.ReferenceField, index.ReferenceField, whereOkSql, oldWhereOkSql))
+`, SchemaName, functionName, EventName, index.Name, index.ReferenceField, index.ReferenceField, whereOkSql, oldWhereOkSql))
 	if err != nil {
 		pg.Logger.Printf("Error create trigger function: %v\n", err)
 		os.Exit(1)
 	}
-	triggerName := "pgsync_" + index.Table + "_trigger"
+	triggerName := "pgsync" + index.Table + "_trigger"
 	sql := fmt.Sprintf(
-		`CREATE OR REPLACE TRIGGER %s AFTER DELETE OR UPDATE OR INSERT ON %s FOR EACH ROW EXECUTE PROCEDURE %s();`,
+		`CREATE OR REPLACE TRIGGER %s AFTER DELETE OR UPDATE OR INSERT ON %s FOR EACH ROW EXECUTE PROCEDURE "%s"."%s"();`,
 		triggerName,
 		index.Table,
+		SchemaName,
 		functionName,
 	)
-	pg.triggersNames = append(pg.triggersNames, triggerName)
 	_, err = pg.conn.Exec(context.Background(), sql)
 	if err != nil {
 		pg.Logger.Fatal().Msgf("Error create trigger: %v", err)
@@ -187,9 +211,8 @@ $trigger$ LANGUAGE plpgsql VOLATILE;
 }
 func (pg *Subscriber) initRelationListener(relation *types.Relation, index *types.Index) {
 	functionName := NotifyTriggerFunctionPrefix + "_rel_" + relation.UniqueName
-	pg.triggerFuncNames = append(pg.triggerFuncNames, functionName)
 	_, err := pg.conn.Exec(context.Background(), fmt.Sprintf(`
-CREATE OR REPLACE FUNCTION "%s"() RETURNS trigger AS $trigger$
+CREATE OR REPLACE FUNCTION "%s"."%s"() RETURNS trigger AS $trigger$
 BEGIN
   IF TG_OP <> 'UPDATE' OR NEW IS DISTINCT FROM OLD THEN
     PERFORM pg_notify('%s', json_build_object(
@@ -202,18 +225,58 @@ BEGIN
   RETURN COALESCE(NEW, OLD);
 END;
 $trigger$ LANGUAGE plpgsql VOLATILE;
-`, functionName, EventName, index.Name, relation.UniqueName, relation.ForeignKey.Local, relation.ForeignKey.Local))
+`, SchemaName, functionName, EventName, index.Name, relation.UniqueName, relation.ForeignKey.Local, relation.ForeignKey.Local))
 	if err != nil {
 		pg.Logger.Fatal().Msgf("Error create trigger function: %v", err)
 	}
 	triggerName := "pgsync_rel_" + relation.UniqueName
 	sql := fmt.Sprintf(
-		`CREATE OR REPLACE TRIGGER %s AFTER DELETE OR UPDATE OR INSERT ON %s FOR EACH ROW EXECUTE PROCEDURE %s();`,
+		`CREATE OR REPLACE TRIGGER %s AFTER DELETE OR UPDATE OR INSERT ON %s FOR EACH ROW EXECUTE PROCEDURE "%s"."%s"();`,
 		triggerName,
 		relation.Table,
+		SchemaName,
 		functionName,
 	)
-	pg.triggersNames = append(pg.triggersNames, triggerName)
+	_, err = pg.conn.Exec(context.Background(), sql)
+	if err != nil {
+		pg.Logger.Fatal().Msgf("Error create trigger: %v", err)
+	}
+	if relation.Type == "many_to_many" {
+		pg.initPivotRelationListener(relation, index)
+	}
+}
+
+func (pg *Subscriber) initPivotRelationListener(relation *types.Relation, index *types.Index) {
+	functionName := NotifyTriggerFunctionPrefix + "_rel_pivot_" + relation.UniqueName
+	_, err := pg.conn.Exec(context.Background(), fmt.Sprintf(`
+CREATE OR REPLACE FUNCTION "%s"."%s"() RETURNS trigger AS $trigger$
+BEGIN
+  IF TG_OP <> 'UPDATE' OR NEW IS DISTINCT FROM OLD THEN
+    PERFORM pg_notify('%s', json_build_object(
+		'type', 'relation_pivot',
+        'index', '%s',
+        'relation','%s',
+        'local',COALESCE(NEW."%s", null)::TEXT,
+        'old_local',COALESCE(OLD."%s", null)::TEXT,
+        'related',COALESCE(NEW."%s", null)::TEXT,
+        'old_related',COALESCE(OLD."%s", null)::TEXT
+    )::TEXT);
+  END IF;
+  RETURN COALESCE(NEW, OLD);
+END;
+$trigger$ LANGUAGE plpgsql VOLATILE;
+`, SchemaName, functionName, EventName, index.Name, relation.UniqueName, relation.ForeignKey.PivotLocal, relation.ForeignKey.PivotLocal, relation.ForeignKey.PivotRelated, relation.ForeignKey.PivotRelated))
+	if err != nil {
+		pg.Logger.Fatal().Msgf("Error create trigger function: %v", err)
+	}
+	triggerName := "pgsync_rel_pivot_" + relation.UniqueName
+	sql := fmt.Sprintf(
+		`CREATE OR REPLACE TRIGGER %s AFTER DELETE OR UPDATE OR INSERT ON %s FOR EACH ROW EXECUTE PROCEDURE "%s"."%s"();`,
+		triggerName,
+		relation.ForeignKey.PivotTable,
+		SchemaName,
+		functionName,
+	)
 	_, err = pg.conn.Exec(context.Background(), sql)
 	if err != nil {
 		pg.Logger.Fatal().Msgf("Error create trigger: %v", err)
@@ -225,6 +288,23 @@ $trigger$ LANGUAGE plpgsql VOLATILE;
 func (pg *Subscriber) GetAllRecordsForIndex(index *types.Index) <-chan types.Record {
 	wheresSqlRaw := pg.GetWhereQuery(index)
 	query := pg.getSelectQuery(index) + " " + wheresSqlRaw
+	fmt.Println(query)
+	//@TODO Use materialized view for performance
+	materializedViewName := "pgsync_temp_view_" + index.Name
+	_, err := pg.conn.Exec(context.Background(), fmt.Sprintf(`DROP MATERIALIZED VIEW IF EXISTS "%s"."%s"`, SchemaName, materializedViewName))
+	if err != nil {
+		pg.Logger.Fatal().Msgf("Error create trigger: %v", err)
+	}
+	_, err = pg.conn.Exec(context.Background(), fmt.Sprintf(`CREATE MATERIALIZED VIEW "%s"."%s" AS(%s)`, SchemaName, materializedViewName, query))
+	if err != nil {
+		pg.Logger.Fatal().Msgf("Error create trigger: %v", err)
+	}
+
+	query = "SELECT * FROM " + materializedViewName
+	index.ReferenceField = "reference"
+	index.Table = materializedViewName
+	return pg.getQueryRecords(query, index, false)
+
 	return pg.getQueryRecords(query, index, wheresSqlRaw != "")
 }
 func (pg *Subscriber) GetFullRecordsForIndex(references []string, index *types.Index) <-chan types.Record {

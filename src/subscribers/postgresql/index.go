@@ -34,6 +34,7 @@ func (index *Index) GetSelectQuery() string {
 func (index *Index) GetWhereRelationQuery(relationUpdates types.RelationsUpdate) string {
 	var relationSelects []string
 
+	//Split pivot and direct column
 	for relation, references := range relationUpdates {
 		rel := Relation(*relation)
 		relationSelects = append(relationSelects, rel.GetReverseSelectQuery(index.Table, references, ""))

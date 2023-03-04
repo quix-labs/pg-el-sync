@@ -6,7 +6,7 @@ services:
     volumes:
       - ./dist:/dist
       - ./src:/src
-      - ./config.yaml:/src/config.yaml
+      #- ./config.yaml:/src/config.yaml
     command:
       - ash
       - -c

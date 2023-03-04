@@ -28,7 +28,7 @@ type Index struct {
 	Active bool
 }
 
-type RelationsUpdate map[*Relation][]string
+type RelationsUpdate map[*Relation][]*RelationUpdateEvent
 
 func (index *Index) Init(config map[string]interface{}) {
 	log := zerolog.New(os.Stdout).With().Caller().Stack().Timestamp().Str("service", "index").Logger()
@@ -165,12 +165,8 @@ func (index *Index) asyncHandleRelationsUpdates() {
 			results := index.WaitingEvents.RelationsUpdate.Retrieve(index.ChunkSize)
 			indexedResults := RelationsUpdate{}
 			for _, event := range results {
-				//@TODO Use map[string:indice.UniqueName]*Relation instead of slice
-				for _, relation := range index.GetAllRelations() {
-					if relation.UniqueName == event.Relation {
-						indexedResults[relation] = utils.Unique(append(indexedResults[relation], event.Reference))
-					}
-				}
+				relation := index.GetAllRelations()[event.Relation]
+				indexedResults[relation] = utils.Unique(append(indexedResults[relation], event))
 			}
 
 			updateRows := utils.ConcurrentSlice[*UpdateRow]{}
@@ -197,6 +193,7 @@ func (index *Index) asyncHandleRelationsUpdates() {
 //------------------PREPARATION FUNCTIONS---------------------------------------
 
 func (index *Index) IndexAllDocuments() {
+	fmt.Println(index.GetAllRelations())
 	fmt.Printf("Index all documents for %s\n", index.Name)
 	insertRows := utils.ConcurrentSlice[*InsertsRow]{}
 	for row := range (*index.Subscriber).GetAllRecordsForIndex(index) {
@@ -265,30 +262,12 @@ func (index *Index) Parse(config map[string]interface{}) error {
 	return nil
 }
 
-func (index *Index) DependsOnTable(table string) bool {
-	for _, relation := range index.GetAllRelations() {
-		if relation.DependsOnTable(table) {
-			return true
-		}
-	}
-	return false
-}
-func (index *Index) GetDependRelations(table string) []*Relation {
-	var dependsRelations []*Relation
-	for _, rel := range index.Relations {
-		for _, depend := range rel.GetDependsRelations(table) {
-			dependsRelations = append(dependsRelations, depend)
-		}
-	}
-	return dependsRelations
-}
-
-func (index *Index) GetAllRelations() []*Relation {
-	var relations []*Relation
-	for _, rel := range index.Relations {
-		relations = append(relations, rel)
-		for _, subRel := range rel.GetAllRelations() {
-			relations = append(relations, subRel)
+func (index *Index) GetAllRelations() Relations {
+	relations := make(Relations)
+	for relName, rel := range index.Relations {
+		relations[relName] = rel
+		for subRelName, subRel := range rel.GetAllRelations() {
+			relations[subRelName] = subRel
 		}
 	}
 	return relations

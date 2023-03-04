@@ -3,7 +3,7 @@ package types
 type AbstractSubscriber interface {
 	Init(config map[string]any)
 
-	PrepareListen(indices []Index)
+	PrepareListen(indices []*Index)
 	Listen()
 	Terminate()
 

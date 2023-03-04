@@ -89,11 +89,35 @@ func (rel *Relation) GetLeftJoinField() string {
 	return fmt.Sprintf(`"%s"."result"`, rel.Name)
 }
 
-func (rel *Relation) GetReverseSelectQuery(table string, references []string, subExists string) string {
+func (rel *Relation) GetReverseSelectQuery(table string, events []*types.RelationUpdateEvent, subExists string) string {
 
 	andRaw := ""
-	if references != nil && len(references) > 0 {
-		andRaw = `AND "` + rel.ForeignKey.Local + `" IN (` + strings.Join(references, ",") + `)`
+	if events != nil && len(events) > 0 {
+		var pivotRelatedReferences []string
+		var relatedReferences []string
+		for _, event := range events {
+			if event.Pivot {
+				pivotRelatedReferences = append(pivotRelatedReferences, event.Reference)
+			} else {
+				relatedReferences = append(relatedReferences, event.Reference)
+			}
+		}
+		var wheres []string
+		if len(relatedReferences) > 0 {
+			wheres = append(wheres, fmt.Sprintf(`"%s"."%s" IN (%s)`,
+				rel.Table,
+				rel.ForeignKey.Local,
+				strings.Join(relatedReferences, ","),
+			))
+		}
+		if len(pivotRelatedReferences) > 0 {
+			wheres = append(wheres, fmt.Sprintf(`"%s"."%s" IN (%s)`,
+				rel.ForeignKey.PivotTable,
+				rel.ForeignKey.PivotLocal,
+				strings.Join(pivotRelatedReferences, ","),
+			))
+		}
+		andRaw = `AND (` + strings.Join(wheres, " OR ") + ")"
 	}
 	fromTable := table
 	if rel.Parent != nil {

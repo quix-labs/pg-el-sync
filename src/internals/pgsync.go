@@ -13,7 +13,7 @@ type PgSync struct {
 	config       *Config
 	subscribers  map[string]types.AbstractSubscriber
 	publishers   map[string]types.AbstractPublisher
-	indices      []types.Index
+	indices      map[string]*types.Index
 	eventChannel chan *interface{}
 }
 
@@ -53,48 +53,30 @@ func (pgSync *PgSync) Start() {
 		notification := <-pgSync.eventChannel
 		switch event := (*notification).(type) {
 		case types.DeleteEvent:
-			//@TODO use map[string:index.Name]*Indice instead of slice
-			for _, index := range pgSync.indices {
-				if index.Name == event.Index {
-					index.WaitingEvents.Delete.Append(&event)
-				}
-			}
+			pgSync.indices[event.Index].WaitingEvents.Delete.Append(&event)
 		case types.InsertEvent:
-			//@TODO use map[string:index.Name]*Indice instead of slice
-			for _, index := range pgSync.indices {
-				if index.Name == event.Index {
-					index.WaitingEvents.Insert.Append(&event)
-				}
-			}
+			pgSync.indices[event.Index].WaitingEvents.Insert.Append(&event)
 		case types.UpdateEvent:
-			//@TODO use map[string:index.Name]*Indice instead of slice
-			for _, index := range pgSync.indices {
-				if index.Name != event.Index {
-					continue
-				}
-				/**----SOFT DELETE------*/
-				if event.SoftDeleted && !event.PreviouslySoftDeleted {
-					index.WaitingEvents.Delete.Append(&types.DeleteEvent{
-						Index:     event.Index,
-						Reference: event.Reference,
-					})
-				} else if !event.SoftDeleted && event.PreviouslySoftDeleted {
-					index.WaitingEvents.Insert.Append(&types.InsertEvent{
-						Index:     event.Index,
-						Reference: event.Reference,
-					})
-				} else if !event.SoftDeleted && !event.PreviouslySoftDeleted {
-					index.WaitingEvents.Update.Append(&event)
-				}
+			index := pgSync.indices[event.Index]
+			/**----SOFT DELETE------*/
+			if event.SoftDeleted && !event.PreviouslySoftDeleted {
+				index.WaitingEvents.Delete.Append(&types.DeleteEvent{
+					Index:     event.Index,
+					Reference: event.Reference,
+				})
+				continue
+			}
+			if !event.SoftDeleted && event.PreviouslySoftDeleted {
+				index.WaitingEvents.Insert.Append(&types.InsertEvent{
+					Index:     event.Index,
+					Reference: event.Reference,
+				})
+				continue
+			}
+			index.WaitingEvents.Update.Append(&event)
 
-			}
 		case types.RelationUpdateEvent:
-			//@TODO use map[string:index.Name]*Indice instead of slice
-			for _, index := range pgSync.indices {
-				if index.Name == event.Index {
-					index.WaitingEvents.RelationsUpdate.Append(&event)
-				}
-			}
+			pgSync.indices[event.Index].WaitingEvents.RelationsUpdate.Append(&event)
 		}
 	}
 }
@@ -131,7 +113,7 @@ func (pgSync *PgSync) FullReindex() {
 		index := index
 		go func() {
 			index.IndexAllDocuments()
-			finishedChan <- &index
+			finishedChan <- index
 		}()
 	}
 	for i > 0 {
@@ -145,6 +127,7 @@ func (pgSync *PgSync) FullReindex() {
 // -----------------INTERNALS----------------------------------------------
 
 func (pgSync *PgSync) loadIndices() error {
+	pgSync.indices = make(map[string]*types.Index)
 	for _, mapping := range pgSync.config.Mappings {
 		var index types.Index
 		index.Init(mapping)
@@ -177,7 +160,7 @@ func (pgSync *PgSync) loadIndices() error {
 			}
 			index.AddPublisher(&publisher)
 		}
-		pgSync.indices = append(pgSync.indices, index)
+		pgSync.indices[index.Name] = &index
 	}
 	return nil
 }
@@ -231,8 +214,8 @@ func (pgSync *PgSync) initPublishers() error {
 	return nil
 }
 
-func (pgSync *PgSync) getIndicesForSubscriber(subscriber types.AbstractSubscriber) []types.Index {
-	var indices []types.Index
+func (pgSync *PgSync) getIndicesForSubscriber(subscriber types.AbstractSubscriber) []*types.Index {
+	var indices []*types.Index
 	for _, index := range pgSync.indices {
 		if (*index.Subscriber) == subscriber {
 			indices = append(indices, index)
@@ -240,8 +223,8 @@ func (pgSync *PgSync) getIndicesForSubscriber(subscriber types.AbstractSubscribe
 	}
 	return indices
 }
-func (pgSync *PgSync) getIndicesForPublisher(publisher types.AbstractPublisher) []types.Index {
-	var indices []types.Index
+func (pgSync *PgSync) getIndicesForPublisher(publisher types.AbstractPublisher) []*types.Index {
+	var indices []*types.Index
 	for _, index := range pgSync.indices {
 		for _, indexPublisher := range index.Publishers {
 			if publisher == (*indexPublisher) {

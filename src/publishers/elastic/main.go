@@ -17,7 +17,7 @@ type Publisher struct {
 	Prefix string
 }
 
-func (p *Publisher) Init(config map[string]interface{}, indices []types.Index) {
+func (p *Publisher) Init(config map[string]interface{}, indices []*types.Index) {
 	esConfig := elasticsearch8.Config{}
 	endpoints, exists := config["endpoints"]
 	if exists && endpoints != nil {
@@ -112,7 +112,7 @@ func (p *Publisher) sendBulk(rows [][]byte) {
 
 func (p *Publisher) Terminate() {}
 
-func (p *Publisher) prepareIndices(indices []types.Index) error {
+func (p *Publisher) prepareIndices(indices []*types.Index) error {
 
 	for _, index := range indices {
 		if index.Settings == nil {

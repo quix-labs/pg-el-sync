@@ -11,8 +11,9 @@ les indexer dans Elasticsearch.
 
 ## Installation et configuration
 
-1. Cloner ce repository: `git clone https://github.com/<votre-repository>/pgsync.git`
+1. Cloner ce repository: `git clone https://github.com/alancolant/pg_el_sync pgsync`
 2. Aller dans le répertoire `pgsync`: `cd pgsync`
+3. Copier le fichier `config.example.yaml` vers `config.yaml`: `cp config.example.yaml config.yaml`
 3. Modifier le fichier de configuration `config.yml` pour spécifier les détails de connexion à Postgresql et
    Elasticsearch, ainsi que les tables à synchroniser et leurs relations.
 4. Lancer le service Docker Compose: `docker-compose up -d`

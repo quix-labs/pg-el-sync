@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis
+    command: redis-server
+  pgsync:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ./schema.json:/app/schema.json
+    labels:
+      org.label-schema.name: "pgsync"
+      org.label-schema.description: "Postgres to Elasticsearch sync"
+      com.label-schema.service-type: "daemon"
+    network_mode: host
+    depends_on:
+      - redis
+    environment:
+      - PG_USER=sail
+      - PG_HOST=localhost
+      - PG_PORT=5432
+      - PG_PASSWORD=password
+      - LOG_LEVEL=INFO
+      - ELASTICSEARCH_SCHEME=http
+      - ELASTICSEARCH_HOST=localhost
+      - ELASTICSEARCH_PORT=9200
+      - REDIS_HOST=localhost
+      - REDIS_PORT=6379
+      #- REDIS_AUTH=PLEASE_CHANGE_ME
+      - ELASTICSEARCH=true
+      - OPENSEARCH=false
+      - USE_ASYNC=true

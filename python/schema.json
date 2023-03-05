@@ -1,0 +1,52 @@
+[
+  {
+    "database": "example_app",
+    "index": "authors",
+    "nodes": {
+      "table": "users",
+      "columns": [
+        "id",
+        "name"
+      ]
+    }
+  },
+  {
+    "database": "example_app",
+    "index": "posts",
+    "nodes": {
+      "table": "posts",
+      "columns": [
+        "description",
+        "name"
+      ],
+      "children": [
+        {
+          "table": "users",
+          "label": "author",
+          "columns": [
+            "name",
+            "id"
+          ],
+          "relationship": {
+            "variant": "object",
+            "type": "one_to_one"
+          }
+        },
+        {
+          "table": "tags",
+          "label": "tags",
+          "columns": [
+            "name"
+          ],
+          "relationship": {
+            "variant": "object",
+            "type": "one_to_many",
+            "through_tables": [
+              "post_tag"
+            ]
+          }
+        }
+      ]
+    }
+  }
+]

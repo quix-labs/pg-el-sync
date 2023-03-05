@@ -51,7 +51,6 @@ func (pgSync *PgSync) Start() {
 
 	for true {
 		notification := <-pgSync.eventChannel
-		fmt.Printf("%+v\n", notification)
 
 		switch event := (*notification).(type) {
 		case types.DeleteEvent:

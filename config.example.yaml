@@ -1,0 +1,59 @@
+#----------------INPUT CONFIGURATION---------------------
+default_in: postgresql
+in:
+  value:
+    driver: pgxpool-trigger
+    host: localhost
+    port: 5432
+    username:
+    password:
+    database:
+
+#----------------OUTPUT CONFIGURATION---------------------
+default_out: [ elasticsearch ]
+out:
+  elasticsearch:
+    driver: elastic
+    endpoints: [ "http://localhost:9200" ]
+    username:
+    password:
+    prefix: pgsync_
+
+#----------------MAPPING CONFIGURATION-----------------------
+mappings:
+  - name: authors
+    table: users
+    chunk_size: 10000 #Default to 500
+    fields: [ 'id','name' ]
+  - name: posts
+    table: posts
+    wheres:
+      - column: deleted_at
+        condition: "IS NULL"
+    chunk_size: 10000 #Default to 500
+    fields: [ 'description','name' ]
+    relations:
+      - name: author
+        table: users
+        type: one_to_one
+        foreign_key:
+          local: id
+          parent: user_id
+        fields: [ "name","id" ]
+
+      - name: tags
+        table: tags
+        type: many_to_many
+
+        foreign_key:
+          local: id
+
+          pivot_table: post_tag
+          pivot_local: post_id
+          pivot_related: tag_id
+
+          pivot_fields: [ 'post_id','tag_id' ]
+
+          parent: id
+
+        fields: [ "name" ]

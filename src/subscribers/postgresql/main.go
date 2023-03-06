@@ -210,7 +210,7 @@ $trigger$ LANGUAGE plpgsql VOLATILE;
 	}
 }
 func (pg *Subscriber) initRelationListener(relation *types.Relation, index *types.Index) {
-	functionName := NotifyTriggerFunctionPrefix + "_rel_" + relation.UniqueName
+	functionName := NotifyTriggerFunctionPrefix + "_" + index.Name + "_rel_" + relation.UniqueName
 	_, err := pg.conn.Exec(context.Background(), fmt.Sprintf(`
 CREATE OR REPLACE FUNCTION "%s"."%s"() RETURNS trigger AS $trigger$
 BEGIN
@@ -229,7 +229,7 @@ $trigger$ LANGUAGE plpgsql VOLATILE;
 	if err != nil {
 		pg.Logger.Fatal().Msgf("Error create trigger function: %v", err)
 	}
-	triggerName := "pgsync_rel_" + relation.UniqueName
+	triggerName := "pgsync_rel_" + index.Name + "_" + relation.UniqueName
 	sql := fmt.Sprintf(
 		`CREATE OR REPLACE TRIGGER %s AFTER DELETE OR UPDATE OR INSERT ON %s FOR EACH ROW EXECUTE PROCEDURE "%s"."%s"();`,
 		triggerName,
@@ -269,7 +269,7 @@ $trigger$ LANGUAGE plpgsql VOLATILE;
 	if err != nil {
 		pg.Logger.Fatal().Msgf("Error create trigger function: %v", err)
 	}
-	triggerName := "pgsync_rel_pivot_" + relation.UniqueName
+	triggerName := "pgsync_rel_pivot_" + index.Name + "_" + relation.UniqueName
 	sql := fmt.Sprintf(
 		`CREATE OR REPLACE TRIGGER %s AFTER DELETE OR UPDATE OR INSERT ON %s FOR EACH ROW EXECUTE PROCEDURE "%s"."%s"();`,
 		triggerName,

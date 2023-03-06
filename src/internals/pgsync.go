@@ -43,6 +43,18 @@ func (pgSync *PgSync) Init(config *Config) error {
 	return nil
 }
 
+func (pgSync *PgSync) Terminate() {
+	for _, index := range pgSync.indices {
+		index.Terminate()
+	}
+	for _, subscriber := range pgSync.subscribers {
+		subscriber.Terminate()
+	}
+	for _, publisher := range pgSync.publishers {
+		publisher.Terminate()
+	}
+}
+
 func (pgSync *PgSync) Start() {
 	for _, subscriber := range pgSync.GetSubscribers() {
 		subscriber.PrepareListen(pgSync.getIndicesForSubscriber(subscriber))

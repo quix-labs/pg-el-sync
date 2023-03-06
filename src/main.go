@@ -25,6 +25,8 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer pgSync.Terminate()
+
 	switch args[0] {
 	case "listen":
 		sigs := make(chan os.Signal, 1)

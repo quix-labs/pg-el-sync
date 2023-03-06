@@ -30,6 +30,8 @@ require (
 	github.com/remeh/diago v0.0.0-20221012140617-b1cf8725986e // indirect
 	github.com/rogpeppe/go-internal v1.9.0 // indirect
 	github.com/sahilm/fuzzy v0.1.0 // indirect
+	github.com/vmihailenco/msgpack/v5 v5.3.5 // indirect
+	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
 	go.uber.org/atomic v1.10.0 // indirect
 	golang.org/x/crypto v0.5.0 // indirect
 	golang.org/x/image v0.3.0 // indirect

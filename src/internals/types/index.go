@@ -18,6 +18,7 @@ type Index struct {
 	ReferenceField string
 	Settings       map[string]any
 
+	Plugins    Plugins
 	Subscriber *AbstractSubscriber
 	Publishers []*AbstractPublisher
 	ChunkSize  int
@@ -45,6 +46,14 @@ func (index *Index) Init(config map[string]interface{}) {
 	go index.asyncHandleUpdates()
 	go index.asyncHandleDeletes()
 	go index.asyncHandleRelationsUpdates()
+}
+func (index *Index) Terminate() {
+	for _, plugin := range index.Plugins {
+		err := plugin.Terminate()
+		if err != nil {
+			continue
+		}
+	}
 }
 
 func (index *Index) SetSubscriber(subscriber *AbstractSubscriber) {
@@ -196,6 +205,9 @@ func (index *Index) IndexAllDocuments() {
 	fmt.Printf("Index all documents for %s\n", index.Name)
 	insertRows := utils.ConcurrentSlice[*InsertsRow]{}
 	for row := range (*index.Subscriber).GetAllRecordsForIndex(index) {
+
+		index.Plugins.Apply(&row)
+
 		insertRows.Append(&InsertsRow{Index: index.Name, Record: row.Data, Reference: row.Reference})
 		if insertRows.Len() >= index.ChunkSize {
 			rows := insertRows.Retrieve(index.ChunkSize)
@@ -239,10 +251,17 @@ func (index *Index) Parse(config map[string]interface{}) error {
 		index.Logger.Info().Msg("Invalid or unspecified chunk_size for mapping, default to 500")
 	}
 
+	if _, exists := config["plugins"]; exists {
+		err = index.Plugins.Parse(config["plugins"])
+		if err != nil {
+			index.Logger.Fatal().Err(err).Msg("Invalid plugins for mapping")
+		}
+	}
+	fmt.Printf("%+v\n", index)
 	if _, exists := config["fields"]; exists {
 		err = index.Fields.Parse(config["fields"])
 		if err != nil {
-			index.Logger.Fatal().Err(err).Msg("Invalid table for mapping")
+			index.Logger.Fatal().Err(err).Msg("Invalid fields for mapping")
 		}
 	}
 	if _, exists := config["wheres"]; exists {

@@ -214,7 +214,7 @@ func (pg *Subscriber) initRelationListener(relation *types.Relation, index *type
 	_, err := pg.conn.Exec(context.Background(), fmt.Sprintf(`
 CREATE OR REPLACE FUNCTION "%s"."%s"() RETURNS trigger AS $trigger$
 BEGIN
-  IF TG_OP <> 'UPDATE' OR NEW IS DISTINCT FROM OLD THEN
+  IF (TG_OP <> 'UPDATE' OR NEW IS DISTINCT FROM OLD) AND COALESCE(NEW."%s",OLD."%s") IS NOT NULL THEN
     PERFORM pg_notify('%s', json_build_object(
 		'type', 'relation',
         'index', '%s',
@@ -225,7 +225,7 @@ BEGIN
   RETURN COALESCE(NEW, OLD);
 END;
 $trigger$ LANGUAGE plpgsql VOLATILE;
-`, SchemaName, functionName, EventName, index.Name, relation.UniqueName, relation.ForeignKey.Local, relation.ForeignKey.Local))
+`, SchemaName, functionName, relation.ForeignKey.Local, relation.ForeignKey.Local, EventName, index.Name, relation.UniqueName, relation.ForeignKey.Local, relation.ForeignKey.Local))
 	if err != nil {
 		pg.Logger.Fatal().Msgf("Error create trigger function: %v", err)
 	}

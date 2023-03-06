@@ -74,6 +74,7 @@ func (pgSync *PgSync) Start() {
 				pgSync.indices[event.Index].WaitingEvents.Insert.Append(&event)
 			}
 		case types.UpdateEvent:
+			fmt.Printf("%+v\n", event)
 			if event.Reference == "" {
 				continue
 			}

@@ -66,10 +66,17 @@ func (pgSync *PgSync) Start() {
 
 		switch event := (*notification).(type) {
 		case types.DeleteEvent:
-			pgSync.indices[event.Index].WaitingEvents.Delete.Append(&event)
+			if event.Reference != "" {
+				pgSync.indices[event.Index].WaitingEvents.Delete.Append(&event)
+			}
 		case types.InsertEvent:
-			pgSync.indices[event.Index].WaitingEvents.Insert.Append(&event)
+			if event.Reference != "" {
+				pgSync.indices[event.Index].WaitingEvents.Insert.Append(&event)
+			}
 		case types.UpdateEvent:
+			if event.Reference == "" {
+				continue
+			}
 			index := pgSync.indices[event.Index]
 			/**----SOFT DELETE------*/
 			if event.SoftDeleted && !event.PreviouslySoftDeleted {
@@ -89,7 +96,9 @@ func (pgSync *PgSync) Start() {
 			index.WaitingEvents.Update.Append(&event)
 
 		case types.RelationUpdateEvent:
-			pgSync.indices[event.Index].WaitingEvents.RelationsUpdate.Append(&event)
+			if event.Reference != "" {
+				pgSync.indices[event.Index].WaitingEvents.RelationsUpdate.Append(&event)
+			}
 		}
 	}
 }

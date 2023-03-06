@@ -168,7 +168,6 @@ func (index *Index) asyncHandleRelationsUpdates() {
 		for index.WaitingEvents.RelationsUpdate.Len() >= index.ChunkSize || millisecondUntilLastFetch > 1000 {
 			lastFetch = time.Now()
 			millisecondUntilLastFetch = 0
-			fmt.Println("ok")
 			if index.WaitingEvents.RelationsUpdate.Len() == 0 {
 				continue
 			}
@@ -178,7 +177,6 @@ func (index *Index) asyncHandleRelationsUpdates() {
 				relation := index.GetAllRelations()[event.Relation]
 				indexedResults[relation] = utils.Unique(append(indexedResults[relation], event))
 			}
-			fmt.Println(indexedResults)
 			updateRows := utils.ConcurrentSlice[*UpdateRow]{}
 			for row := range (*index.Subscriber).GetFullRecordsForRelationUpdate(indexedResults, index) {
 				updateRows.Append(&UpdateRow{Index: index.Name, Record: row.Data, Reference: row.Reference})

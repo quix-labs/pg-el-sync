@@ -247,7 +247,7 @@ $trigger$ LANGUAGE plpgsql VOLATILE;
 }
 
 func (pg *Subscriber) initPivotRelationListener(relation *types.Relation, index *types.Index) {
-	functionName := NotifyTriggerFunctionPrefix + "_rel_pivot_" + relation.UniqueName
+	functionName := NotifyTriggerFunctionPrefix + "_" + index.Name + "_rel_pivot_" + relation.UniqueName
 	_, err := pg.conn.Exec(context.Background(), fmt.Sprintf(`
 CREATE OR REPLACE FUNCTION "%s"."%s"() RETURNS trigger AS $trigger$
 BEGIN
@@ -288,7 +288,7 @@ $trigger$ LANGUAGE plpgsql VOLATILE;
 func (pg *Subscriber) GetAllRecordsForIndex(index *types.Index) <-chan types.Record {
 	wheresSqlRaw := pg.GetWhereQuery(index)
 	query := pg.getSelectQuery(index) + " " + wheresSqlRaw
-
+	fmt.Println(query)
 	//@TODO Clean code
 	materializedViewName := "pgsync_temp_view_" + index.Name
 	_, err := pg.conn.Exec(context.Background(), fmt.Sprintf(`DROP MATERIALIZED VIEW IF EXISTS "%s"."%s"`, SchemaName, materializedViewName))

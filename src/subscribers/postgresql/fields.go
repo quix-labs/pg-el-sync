@@ -15,7 +15,7 @@ func (fields *Fields) asJsonBuildObjectQuery(table string, additional map[string
 		rawFields = append(rawFields, fmt.Sprintf("'%s',%s", alias, raw))
 	}
 
-	return "JSON_BUILD_OBJECT(" + strings.Join(rawFields, ",") + ")"
+	return "JSONB_BUILD_OBJECT(" + strings.Join(rawFields, ",") + ")"
 }
 
 func (fields *Fields) getParsedFields(table string, additional map[string]string) map[string]string {

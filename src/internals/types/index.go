@@ -295,6 +295,9 @@ func (index *Index) GetAllRelations() Relations {
 
 func (index *Index) GetAllMapping() map[string]any {
 	mappings := index.Mappings
+	if mappings == nil {
+		mappings = make(map[string]any)
+	}
 	for _, rel := range index.GetAllRelations() {
 		for field, mapping := range rel.GetMapping() {
 			mappings[rel.GetFullName()+"."+field] = mapping

@@ -288,7 +288,6 @@ $trigger$ LANGUAGE plpgsql VOLATILE;
 func (pg *Subscriber) GetAllRecordsForIndex(index *types.Index) <-chan types.Record {
 	wheresSqlRaw := pg.GetWhereQuery(index)
 	query := pg.getSelectQuery(index) + " " + wheresSqlRaw
-	fmt.Println(query)
 	//@TODO Clean code
 	materializedViewName := "pgsync_temp_view_" + index.Name
 	_, err := pg.conn.Exec(context.Background(), fmt.Sprintf(`DROP MATERIALIZED VIEW IF EXISTS "%s"."%s"`, SchemaName, materializedViewName))
@@ -340,7 +339,6 @@ func (pg *Subscriber) GetFullRecordsForRelationUpdate(relationUpdates types.Rela
 				wheresRelationRaw = "AND " + wheresRelationRaw
 				sqlQuery = index.GetSelectQuery() + " " + wheresSqlRaw + " " + wheresRelationRaw
 			}
-			fmt.Println(sqlQuery)
 			for row := range pg.getQueryRecords(sqlQuery, idx, true) {
 				ch <- row
 			}
@@ -414,7 +412,6 @@ func (pg *Subscriber) getQueryRecords(query string, index *types.Index, useAnd b
 			)
 			rows, err := pg.conn.Query(context.Background(), query)
 			if err != nil {
-				fmt.Println(query)
 				pg.Logger.Printf("Cannot execute query: %s", err)
 			}
 			for rows.Next() {

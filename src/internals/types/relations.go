@@ -22,6 +22,7 @@ type Relation struct {
 
 	Wheres    Wheres
 	Relations Relations
+	Mappings  map[string]any
 
 	Parent    *Relation
 	UniqueKey string
@@ -117,13 +118,25 @@ func (relation *Relation) Parse(config any, parent *Relation) error {
 			return errors.New("invalid table for mapping")
 		}
 	}
+	if _, exists := rel["mappings"]; exists {
+		err = utils.ParseMapKey(rel, "mappings", &relation.Mappings)
+		if err != nil {
+			return errors.New("invalid table for mapping")
+		}
+	}
 	if parent != nil {
 		relation.Parent = parent
 	}
 	relation.UniqueName = relation.getUniqueName()
 	return nil
 }
-
+func (relation *Relation) GetFullName() string {
+	name := relation.Name
+	if relation.Parent != nil {
+		name = relation.Parent.GetFullName() + "." + name
+	}
+	return name
+}
 func (relation *Relation) GetAllRelations() Relations {
 	relations := make(Relations)
 	for relationName, rel := range relation.Relations {
@@ -133,4 +146,8 @@ func (relation *Relation) GetAllRelations() Relations {
 		}
 	}
 	return relations
+}
+
+func (relation *Relation) GetMapping() map[string]any {
+	return relation.Mappings
 }

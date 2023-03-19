@@ -115,17 +115,34 @@ func (p *Publisher) Terminate() {}
 func (p *Publisher) prepareIndices(indices []*types.Index) error {
 
 	for _, index := range indices {
-		if index.Settings == nil {
+		if len(index.Settings) == 0 && len(index.Mappings) == 0 {
 			continue
 		}
-
-		res, err := p.client.Indices.Exists([]string{index.Name}, p.client.Indices.Exists.WithPretty())
+		name := p.Prefix + index.Name
+		res, err := p.client.Indices.Exists([]string{name}, p.client.Indices.Exists.WithPretty())
+		defer res.Body.Close()
 		if err != nil {
 			return err
 		}
-		defer res.Body.Close()
 		if res.IsError() {
-			res, err := p.client.Indices.Create(index.Name, p.client.Indices.Create.WithHuman())
+			request := map[string]any{}
+
+			//Settings
+			settings := index.Settings
+			if len(settings) > 0 {
+				request["settings"] = settings
+			}
+			//Mappings
+			mappings := index.GetAllMapping()
+			if len(mappings) > 0 {
+				request["mappings"] = map[string]any{"properties": mappings}
+			}
+
+			body, err := json.Marshal(request)
+			if err != nil {
+				return err
+			}
+			res, err := p.client.Indices.Create(name, p.client.Indices.Create.WithBody(bytes.NewReader(body)))
 			if err != nil {
 				return err
 			}
@@ -133,22 +150,6 @@ func (p *Publisher) prepareIndices(indices []*types.Index) error {
 				return errors.New(res.String())
 			}
 		}
-
-		if mappings, exists := index.Settings["mappings"]; exists && mappings != nil {
-			body, err := json.Marshal(mappings)
-			if err != nil {
-				return err
-			}
-			res, err = p.client.Indices.PutMapping([]string{index.Name}, bytes.NewReader(body))
-			if err != nil {
-				return err
-			}
-			defer res.Body.Close()
-			if res.IsError() {
-				return errors.New(res.String())
-			}
-		}
-
 	}
 	return nil
 

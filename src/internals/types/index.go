@@ -17,6 +17,7 @@ type Index struct {
 
 	ReferenceField string
 	Settings       map[string]any
+	Mappings       map[string]any
 
 	Plugins    Plugins
 	Subscriber *AbstractSubscriber
@@ -235,6 +236,10 @@ func (index *Index) Parse(config map[string]interface{}) error {
 	if err != nil {
 		index.Logger.Info().Msg("Invalid settings for mapping")
 	}
+	err = utils.ParseMapKey(config, "mappings", &index.Mappings)
+	if err != nil {
+		index.Logger.Info().Msg("Invalid mappings for mapping")
+	}
 	err = utils.ParseMapKey(config, "table", &index.Table)
 	if err != nil {
 		index.Logger.Fatal().Err(err).Msg("Invalid table for mapping")
@@ -256,7 +261,6 @@ func (index *Index) Parse(config map[string]interface{}) error {
 			index.Logger.Fatal().Err(err).Msg("Invalid plugins for mapping")
 		}
 	}
-	fmt.Printf("%+v\n", index)
 	if _, exists := config["fields"]; exists {
 		err = index.Fields.Parse(config["fields"])
 		if err != nil {
@@ -278,7 +282,6 @@ func (index *Index) Parse(config map[string]interface{}) error {
 
 	return nil
 }
-
 func (index *Index) GetAllRelations() Relations {
 	relations := make(Relations)
 	for relName, rel := range index.Relations {
@@ -288,4 +291,14 @@ func (index *Index) GetAllRelations() Relations {
 		}
 	}
 	return relations
+}
+
+func (index *Index) GetAllMapping() map[string]any {
+	mappings := index.Mappings
+	for _, rel := range index.GetAllRelations() {
+		for field, mapping := range rel.GetMapping() {
+			mappings[rel.GetFullName()+"."+field] = mapping
+		}
+	}
+	return mappings
 }

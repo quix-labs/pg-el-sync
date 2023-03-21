@@ -37,17 +37,18 @@ func (index *Index) GetWhereRelationQuery(relationUpdates types.RelationsUpdate)
 	//Split pivot and direct column
 	for relation, references := range relationUpdates {
 		rel := Relation(*relation)
-		relationSelects = append(relationSelects, rel.GetReverseSelectQuery(index.Table, references, ""))
-	}
-
-	query := "WHERE ( "
-	for idx, relationSelect := range relationSelects {
-		if idx == 0 {
-			query += " EXISTS (" + relationSelect + ")"
+		if rel.Parent == nil {
+			var referencesRaw []string
+			for _, reference := range references {
+				referencesRaw = append(referencesRaw, reference.Reference)
+			}
+			relationSelects = append(relationSelects, fmt.Sprintf(
+				`"%s"."%s" IN (%s)`,
+				index.Table, rel.ForeignKey.Parent, strings.Join(referencesRaw, ","),
+			))
 		} else {
-			query += " OR EXISTS (" + relationSelect + ")"
+			relationSelects = append(relationSelects, "EXISTS ("+rel.GetReverseSelectQuery(index.Table, references, "")+")")
 		}
 	}
-	query += ")"
-	return query
+	return "WHERE ( " + strings.Join(relationSelects, " OR ") + ")"
 }

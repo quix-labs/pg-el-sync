@@ -36,6 +36,10 @@ mappings:
       - name: author
         table: users
         type: one_to_one
+        mappings:
+          id:
+            type: text
+            analyzer: my_analyzer
         foreign_key:
           local: id
           parent: user_id

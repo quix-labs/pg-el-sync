@@ -4,8 +4,6 @@ import (
 	"go_pg_es_sync/internals"
 	"log"
 	"os"
-	"os/signal"
-	"syscall"
 )
 
 func main() {
@@ -29,10 +27,11 @@ func main() {
 
 	switch args[0] {
 	case "listen":
-		sigs := make(chan os.Signal, 1)
-		signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+		//sigs := make(chan os.Signal, 1)
+		//signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 		go pgSync.Start()
-		<-sigs
+		select {}
+		//<-sigs
 	case "index":
 		pgSync.FullReindex()
 	case "stats":

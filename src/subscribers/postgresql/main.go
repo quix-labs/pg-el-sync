@@ -358,7 +358,6 @@ func (pg *Subscriber) GetFullRecordsForRelationUpdate(relationUpdates types.Rela
 					chunkRelationUpdates = make(types.RelationsUpdate)
 					currentRelationSize = 0
 				}
-
 			}
 		}
 		if currentRelationSize > 0 {

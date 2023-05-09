@@ -14,9 +14,10 @@ type ForeignKey struct {
 	PivotRelated string `json:"pivot_related"`
 }
 type Relation struct {
+	Table string
+	Name  string
+
 	Type       string // 'one_to_one', 'one_to_many', 'many_to_many'
-	Name       string
-	Table      string
 	SoftDelete bool
 	Fields     Fields
 
@@ -29,6 +30,10 @@ type Relation struct {
 
 	ForeignKey ForeignKey
 	UniqueName string
+
+	UsingView   bool
+	ViewName    string
+	ViewCreated bool
 }
 type Relations map[string]*Relation
 
@@ -40,30 +45,22 @@ func (relations *Relations) Parse(config any, parent *Relation) error {
 	if err != nil {
 		return errors.New("unable to parse relations")
 	}
-
 	for _, relation := range tempRelations {
 		rel := &Relation{}
 		err = rel.Parse(relation, parent)
 		if err != nil {
 			return err
 		}
-		if parent != nil {
-			rel.Parent = parent
-		}
 		(*relations)[rel.UniqueName] = rel
 	}
 	return nil
 }
 
-func (relation *Relation) getUniqueName() string {
-	name := relation.Name
-	if relation.Parent != nil {
-		name = relation.Parent.getUniqueName() + "_" + name
-	}
-	return name
-}
 func (relation *Relation) Parse(config any, parent *Relation) error {
 	var rel map[string]any
+	if parent != nil {
+		relation.Parent = parent
+	}
 	err := utils.ParseMap(config, &rel)
 	if err != nil {
 		return errors.New("unable to parse relation")
@@ -83,6 +80,10 @@ func (relation *Relation) Parse(config any, parent *Relation) error {
 	err = utils.ParseMapKey(rel, "soft_delete", &relation.SoftDelete)
 	if err != nil {
 		relation.SoftDelete = false
+	}
+	err = utils.ParseMapKey(rel, "using_view", &relation.UsingView)
+	if err != nil {
+		relation.UsingView = false
 	}
 	if _, exists := rel["foreign_key"]; !exists {
 		return errors.New("you need to define foreign_key on relations")
@@ -124,12 +125,19 @@ func (relation *Relation) Parse(config any, parent *Relation) error {
 			return errors.New("invalid table for mapping")
 		}
 	}
-	if parent != nil {
-		relation.Parent = parent
-	}
 	relation.UniqueName = relation.getUniqueName()
+	relation.ViewName = relation.UniqueName + "_tmp_view"
 	return nil
 }
+
+func (relation *Relation) getUniqueName() string {
+	name := relation.Name
+	if relation.Parent != nil {
+		name = relation.Parent.getUniqueName() + "_" + name
+	}
+	return name
+}
+
 func (relation *Relation) GetFullName() string {
 	name := relation.Name
 	if relation.Parent != nil {

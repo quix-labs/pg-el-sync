@@ -286,17 +286,40 @@ $trigger$ LANGUAGE plpgsql VOLATILE;
 //-----------------------------------------READ INDEX/DOCUMENTS---------------------------------------------
 
 func (pg *Subscriber) GetAllRecordsForIndex(index *types.Index) <-chan types.Record {
+	views := index.GetAllRelationsAsView()
+	var keys []string
+	for relName, _ := range views {
+		keys = append(keys, relName)
+	}
+	//@TODO Ordering view between here level and run concurrently
+	for i := len(views) - 1; i >= 0; i-- {
+		//for _, i := range []string{"posts_author_posts", "posts_author", "posts"} {
+		rel := views[keys[i]]
+		r := Relation(*rel)
+		materializedViewName := r.ViewName
+		_, err := pg.conn.Exec(context.TODO(), fmt.Sprintf(`DROP MATERIALIZED VIEW IF EXISTS "%s"."%s"`, SchemaName, materializedViewName))
+		if err != nil {
+			pg.Logger.Fatal().Msgf("Error drop materialized view: %v", err)
+		}
+		_, err = pg.conn.Exec(context.TODO(), fmt.Sprintf(`CREATE MATERIALIZED VIEW "%s"."%s" AS(%s)`, SchemaName, materializedViewName, r.GetSelectQuery()))
+		if err != nil {
+			pg.Logger.Fatal().Msgf("Error create materialized view: %v", err)
+		}
+		rel.ViewCreated = true
+	}
+	//os.Exit(0)
+
 	wheresSqlRaw := pg.GetWhereQuery(index)
 	query := pg.getSelectQuery(index) + " " + wheresSqlRaw
 	//@TODO Clean code
 	materializedViewName := "pgsync_temp_view_" + index.Name
 	_, err := pg.conn.Exec(context.Background(), fmt.Sprintf(`DROP MATERIALIZED VIEW IF EXISTS "%s"."%s"`, SchemaName, materializedViewName))
 	if err != nil {
-		pg.Logger.Fatal().Msgf("Error create trigger: %v", err)
+		pg.Logger.Fatal().Msgf("Error drop materialized view: %v", err)
 	}
 	_, err = pg.conn.Exec(context.Background(), fmt.Sprintf(`CREATE MATERIALIZED VIEW "%s"."%s" AS(%s)`, SchemaName, materializedViewName, query))
 	if err != nil {
-		pg.Logger.Fatal().Msgf("Error create trigger: %v", err)
+		pg.Logger.Fatal().Msgf("Error create materialized view: %v", err)
 	}
 
 	query = "SELECT * FROM " + SchemaName + "." + materializedViewName

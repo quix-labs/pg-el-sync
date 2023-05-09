@@ -8,7 +8,7 @@ import (
 
 type Relation types.Relation
 
-func (rel *Relation) GetLeftJoinQuery(parentTable string) string {
+func (rel *Relation) GetSelectQuery() string {
 	additionalFields := map[string]string{}
 	var leftJoins []string
 
@@ -22,11 +22,13 @@ func (rel *Relation) GetLeftJoinQuery(parentTable string) string {
 	if rel.SoftDelete {
 		softDeleteWhere = fmt.Sprintf(`WHERE "%s"."%s" IS NULL`, rel.Table, "deleted_at")
 	}
+
 	fields := Fields(rel.Fields)
+
 	switch rel.Type {
 	case "one_to_many":
 		return fmt.Sprintf(
-			`LEFT OUTER JOIN (SELECT JSON_AGG(%s) AS "result", "%s"."%s" AS parent_ref FROM "%s" %s %s GROUP BY "%s"."%s") AS "%s" ON "%s"."parent_ref" = "%s"."%s"`,
+			`SELECT JSON_AGG(%s) AS "result", "%s"."%s" AS parent_ref FROM "%s" %s %s GROUP BY "%s"."%s"`,
 			fields.asJsonBuildObjectQuery(rel.Table, additionalFields),
 			rel.Table,
 			rel.ForeignKey.Local,
@@ -35,24 +37,16 @@ func (rel *Relation) GetLeftJoinQuery(parentTable string) string {
 			softDeleteWhere,
 			rel.Table,
 			rel.ForeignKey.Local,
-			rel.Name,
-			rel.Name,
-			parentTable,
-			rel.ForeignKey.Parent,
 		)
 	case "one_to_one":
 		return fmt.Sprintf(
-			`LEFT OUTER JOIN (SELECT %s AS "result", "%s"."%s" AS parent_ref FROM "%s" %s %s ) AS "%s" ON "%s"."parent_ref" = "%s"."%s"`,
+			`SELECT %s AS "result", "%s"."%s" AS parent_ref FROM "%s" %s %s`,
 			fields.asJsonBuildObjectQuery(rel.Table, additionalFields),
 			rel.Table,
 			rel.ForeignKey.Local,
 			rel.Table,
 			strings.Join(leftJoins, " "),
 			softDeleteWhere,
-			rel.Name,
-			rel.Name,
-			parentTable,
-			rel.ForeignKey.Parent,
 		)
 	case "many_to_many":
 		if rel.ForeignKey.PivotFields.Len() > 0 {
@@ -62,7 +56,7 @@ func (rel *Relation) GetLeftJoinQuery(parentTable string) string {
 			}
 		}
 		return fmt.Sprintf(
-			`LEFT OUTER JOIN (SELECT JSON_AGG(%s) AS "result", "%s"."%s" AS parent_ref %s FROM "%s" INNER JOIN "%s" ON "%s"."%s"="%s"."%s" %s GROUP BY "%s"."%s") AS "%s" ON "%s"."parent_ref" = "%s"."%s"`,
+			`SELECT JSON_AGG(%s) AS "result", "%s"."%s" AS parent_ref %s FROM "%s" INNER JOIN "%s" ON "%s"."%s"="%s"."%s" %s GROUP BY "%s"."%s"`,
 			fields.asJsonBuildObjectQuery(rel.Table, additionalFields),
 			rel.ForeignKey.PivotTable,
 			rel.ForeignKey.PivotLocal,
@@ -76,13 +70,23 @@ func (rel *Relation) GetLeftJoinQuery(parentTable string) string {
 			strings.Join(leftJoins, " "),
 			rel.ForeignKey.PivotTable,
 			rel.ForeignKey.PivotLocal,
-			rel.Name,
-			rel.Name,
-			parentTable,
-			rel.ForeignKey.Parent,
 		)
 	}
 	return ""
+}
+func (rel *Relation) GetLeftJoinQuery(parentTable string) string {
+	selectQuery := rel.GetSelectQuery()
+	if rel.ViewCreated {
+		selectQuery = fmt.Sprintf(`SELECT * FROM "%s"."%s"`, SchemaName, rel.ViewName)
+	}
+	return fmt.Sprintf(
+		`LEFT OUTER JOIN (%s) AS "%s" ON "%s"."parent_ref" = "%s"."%s"`,
+		selectQuery,
+		rel.Name,
+		rel.Name,
+		parentTable,
+		rel.ForeignKey.Parent,
+	)
 }
 
 func (rel *Relation) GetLeftJoinField() string {

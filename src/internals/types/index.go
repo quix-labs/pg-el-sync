@@ -293,6 +293,16 @@ func (index *Index) GetAllRelations() Relations {
 	return relations
 }
 
+func (index *Index) GetAllRelationsAsView() Relations {
+	relations := make(Relations)
+	for relName, rel := range index.GetAllRelations() {
+		if rel.UsingView == true {
+			relations[relName] = rel
+		}
+	}
+	return relations
+}
+
 func (index *Index) GetAllMapping() map[string]any {
 	mappings := index.Mappings
 	if mappings == nil {

@@ -113,8 +113,25 @@ func (index *Index) asyncHandleUpdates() {
 				continue
 			}
 			results := index.WaitingEvents.Update.Retrieve(index.ChunkSize)
-			var references []string
 
+			// Remove old reference id changes
+			var oldRows []*DeleteRow
+			for _, event := range results {
+				if event.Reference != event.OldReference {
+					oldRows = append(oldRows, &DeleteRow{
+						Index:     index.Name,
+						Reference: event.OldReference,
+					})
+				}
+			}
+			if len(oldRows) > 0 {
+				for _, publisher := range index.Publishers {
+					(*publisher).Delete(oldRows)
+				}
+			}
+
+			// Update rows
+			var references []string
 			for _, event := range results {
 				references = append(references, event.Reference)
 			}

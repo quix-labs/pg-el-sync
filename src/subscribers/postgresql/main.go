@@ -85,6 +85,7 @@ func (pg *Subscriber) parseNotification(notification *pgconn.Notification) (*int
 		Relation       string `json:"relation"`
 		Action         string `json:"action"`
 		Reference      string `json:"reference"`
+		OldReference   string `json:"old_reference"`
 		SoftDeleted    bool   `json:"soft_deleted"`
 		OldSoftDeleted bool   `json:"old_soft_deleted"`
 		Local          string `json:"local"`
@@ -109,6 +110,7 @@ func (pg *Subscriber) parseNotification(notification *pgconn.Notification) (*int
 			event = types.UpdateEvent{
 				Index:                 res.Index,
 				Reference:             res.Reference,
+				OldReference:          res.OldReference,
 				SoftDeleted:           res.SoftDeleted,
 				PreviouslySoftDeleted: res.OldSoftDeleted,
 			}
@@ -184,6 +186,7 @@ BEGIN
 		'index', '%s',
         'action', LOWER(TG_OP),
         'reference',COALESCE(NEW."%s", OLD."%s")::TEXT,
+        'old_reference',OLD."%s"::TEXT,
         'soft_deleted',NOT (%s),
         'old_soft_deleted',NOT (%s)
     )::TEXT);
@@ -191,7 +194,7 @@ BEGIN
   RETURN COALESCE(NEW, OLD);
 END;
 $trigger$ LANGUAGE plpgsql VOLATILE;
-`, SchemaName, functionName, EventName, index.Name, index.ReferenceField, index.ReferenceField, whereOkSql, oldWhereOkSql))
+`, SchemaName, functionName, EventName, index.Name, index.ReferenceField, index.ReferenceField, index.ReferenceField, whereOkSql, oldWhereOkSql))
 	if err != nil {
 		pg.Logger.Printf("Error create trigger function: %v\n", err)
 		os.Exit(1)

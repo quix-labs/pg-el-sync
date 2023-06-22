@@ -10,6 +10,7 @@ type InsertEvent struct {
 type UpdateEvent struct {
 	Index                 string
 	Reference             string
+	OldReference          string
 	SoftDeleted           bool
 	PreviouslySoftDeleted bool
 }

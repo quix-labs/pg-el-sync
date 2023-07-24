@@ -101,9 +101,9 @@ func (rel *Relation) GetReverseSelectQuery(table string, events []*types.Relatio
 		var relatedReferences []string
 		for _, event := range events {
 			if event.Pivot {
-				pivotRelatedReferences = append(pivotRelatedReferences, `"`+event.Reference+`"`)
+				pivotRelatedReferences = append(pivotRelatedReferences, `'`+event.Reference+`'`)
 			} else {
-				relatedReferences = append(relatedReferences, `"`+event.Reference+`"`)
+				relatedReferences = append(relatedReferences, `'`+event.Reference+`'`)
 			}
 		}
 		var wheres []string

@@ -40,7 +40,7 @@ func (index *Index) GetWhereRelationQuery(relationUpdates types.RelationsUpdate)
 		if rel.Parent == nil {
 			var referencesRaw []string
 			for _, reference := range references {
-				referencesRaw = append(referencesRaw, `"`+reference.Reference+`"`)
+				referencesRaw = append(referencesRaw, `'`+reference.Reference+`'`)
 			}
 			relationSelects = append(relationSelects, fmt.Sprintf(
 				`"%s"."%s"::TEXT IN (%s)`,

@@ -365,7 +365,6 @@ func (pg *Subscriber) GetFullRecordsForRelationUpdate(relationUpdates types.Rela
 				wheresRelationRaw = "AND " + wheresRelationRaw
 				sqlQuery = index.GetSelectQuery() + " " + wheresSqlRaw + " " + wheresRelationRaw
 			}
-			fmt.Println(sqlQuery)
 			//fmt.Println(sqlQuery)
 			for row := range pg.getQueryRecords(sqlQuery, idx, true) {
 				ch <- row

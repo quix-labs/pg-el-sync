@@ -101,21 +101,21 @@ func (rel *Relation) GetReverseSelectQuery(table string, events []*types.Relatio
 		var relatedReferences []string
 		for _, event := range events {
 			if event.Pivot {
-				pivotRelatedReferences = append(pivotRelatedReferences, event.Reference)
+				pivotRelatedReferences = append(pivotRelatedReferences, `"`+event.Reference+`"`)
 			} else {
-				relatedReferences = append(relatedReferences, event.Reference)
+				relatedReferences = append(relatedReferences, `"`+event.Reference+`"`)
 			}
 		}
 		var wheres []string
 		if len(relatedReferences) > 0 {
-			wheres = append(wheres, fmt.Sprintf(`"%s"."%s" IN (%s)`,
+			wheres = append(wheres, fmt.Sprintf(`"%s"."%s"::TEXT IN (%s)`,
 				rel.Table,
 				rel.ForeignKey.Local,
 				strings.Join(relatedReferences, ","),
 			))
 		}
 		if len(pivotRelatedReferences) > 0 {
-			wheres = append(wheres, fmt.Sprintf(`"%s"."%s" IN (%s)`,
+			wheres = append(wheres, fmt.Sprintf(`"%s"."%s"::TEXT IN (%s)`,
 				rel.ForeignKey.PivotTable,
 				rel.ForeignKey.PivotLocal,
 				strings.Join(pivotRelatedReferences, ","),

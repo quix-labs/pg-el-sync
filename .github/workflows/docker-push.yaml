@@ -35,9 +35,9 @@ jobs:
         with:
           images: ${{ env.IMAGE_NAME }}
           tags: |
-            type=ref,enable=true,priority=600,prefix=,suffix=,event=branch
-            type=ref,enable=true,priority=600,prefix=,suffix=,event=tag
-            type=ref,enable=true,priority=600,prefix=pr-,suffix=,event=pr
+            type=sha,prefix={{branch}}-,event=branch
+            type=ref,event=tag
+            type=ref,prefix=pr-,event=pr
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and Push

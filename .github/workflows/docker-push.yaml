@@ -35,7 +35,7 @@ jobs:
         with:
           images: ${{ env.IMAGE_NAME }}
           tags: |
-            type=sha,prefix={{branch}}-,event=branch
+            type=sha,event=branch
             type=ref,event=tag
             type=ref,prefix=pr-,event=pr
             type=raw,value=latest,enable={{is_default_branch}}

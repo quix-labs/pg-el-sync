@@ -23,6 +23,6 @@ les indexer dans Elasticsearch.
 Une fois que le service Docker Compose est lancé, vous pouvez utiliser les commandes suivantes pour synchroniser les
 données:
 
-- `docker-compose up -d prod`: Cette commande surveille la base de données en temps réel et synchronise les données dès
+- `docker compose up -d prod`: Cette commande surveille la base de données en temps réel et synchronise les données dès
   qu'il y a des changements.
-- `docker-compose exec prod pgsync index`: Cette commande indexe toutes les tables spécifiées dans la configuration.
+- `docker compose exec prod pgsync index`: Cette commande indexe toutes les tables spécifiées dans la configuration.

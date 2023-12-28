@@ -37,7 +37,7 @@ RUN go build -ldflags="-w -s" -o /.output/bin/pgsync
 
 
 # Final image
-FROM scratch
+FROM alpine:3.19.0
 COPY --from=builder /.output /
 
 ENTRYPOINT ["/bin/dumb-init", "--"]

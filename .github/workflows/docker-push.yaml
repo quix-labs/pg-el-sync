@@ -50,7 +50,6 @@ jobs:
 
       - name: Analyze for critical and high CVEs
         id: docker-scout
-        if: ${{ github.event_name == 'pull_request' }}
         uses: docker/scout-action@v1
         with:
           command: cves
@@ -60,7 +59,6 @@ jobs:
 
       - name: Upload SARIF result
         id: upload-sarif
-        if: ${{ github.event_name != 'pull_request_target' }}
         uses: github/codeql-action/upload-sarif@v2
         with:
           sarif_file: sarif.output.json

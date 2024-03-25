@@ -41,19 +41,52 @@ nfpms:
     formats: [ deb, rpm, apk ]
 
 dockers:
+  - image_templates:
+      - "ghcr.io/quix-labs/{{.ProjectName}}:{{.Version}}-amd64"
+    dockerfile: docker/goreleaser.Dockerfile
+    use: buildx
+    build_flag_templates:
+      - --platform=linux/amd64
+      - --label=org.opencontainers.image.title={{ .ProjectName }}
+      - --label=org.opencontainers.image.description={{ .ProjectName }}
+      - --label=org.opencontainers.image.url=https://github.com/quix-labs/{{ .ProjectName }}
+      - --label=org.opencontainers.image.source=https://github.com/quix-labs/{{ .ProjectName }}
+      - --label=org.opencontainers.image.version={{ .Version }}
+      - --label=org.opencontainers.image.created={{ time "2006-01-02T15:04:05Z07:00" }}
+      - --label=org.opencontainers.image.revision={{ .FullCommit }}
+      - --label=org.opencontainers.image.licenses=MIT
 
   - image_templates:
-      - "ghcr.io/quix-labs/{{.ProjectName}}:latest"
-      - "ghcr.io/quix-labs/{{.ProjectName}}:{{ .Tag }}"
-      - "ghcr.io/quix-labs/{{.ProjectName}}:v{{ .Major }}"
-      - "ghcr.io/quix-labs/{{.ProjectName}}:v{{ .Major }}.{{ .Minor }}"
+      - "ghcr.io/quix-labs/{{.ProjectName}}:{{.Version}}-arm64v8"
     dockerfile: docker/goreleaser.Dockerfile
+    use: buildx
     build_flag_templates:
-      - "--pull"
-      - "--label=org.opencontainers.image.created={{.Date}}"
-      - "--label=org.opencontainers.image.title={{.ProjectName}}"
-      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
-      - "--label=org.opencontainers.image.version={{.Version}}"
+      - --platform=linux/arm64/v8
+      - --label=org.opencontainers.image.title={{ .ProjectName }}
+      - --label=org.opencontainers.image.description={{ .ProjectName }}
+      - --label=org.opencontainers.image.url=https://github.com/quix-labs/{{ .ProjectName }}
+      - --label=org.opencontainers.image.source=https://github.com/quix-labs/{{ .ProjectName }}
+      - --label=org.opencontainers.image.version={{ .Version }}
+      - --label=org.opencontainers.image.created={{ time "2006-01-02T15:04:05Z07:00" }}
+      - --label=org.opencontainers.image.revision={{ .FullCommit }}
+      - --label=org.opencontainers.image.licenses=MIT
+
+docker_manifests:
+  - name_template: ghcr.io/quix-labs/{{ .ProjectName }}:v{{ .Major }}.{{ .Minor }}
+    image_templates:
+      - ghcr.io/quix-labs/{{ .ProjectName }}:{{ .Version }}-amd64
+      - ghcr.io/quix-labs/{{ .ProjectName }}:{{ .Version }}-arm64v8
+
+  - name_template: ghcr.io/quix-labs/{{ .ProjectName }}:v{{ .Major }}
+    image_templates:
+      - ghcr.io/quix-labs/{{ .ProjectName }}:{{ .Version }}-amd64
+      - ghcr.io/quix-labs/{{ .ProjectName }}:{{ .Version }}-arm64v8
+
+  - name_template: ghcr.io/quix-labs/{{ .ProjectName }}:latest
+    image_templates:
+      - ghcr.io/quix-labs/{{ .ProjectName }}:{{ .Version }}-amd64
+      - ghcr.io/quix-labs/{{ .ProjectName }}:{{ .Version }}-arm64v8
+
 changelog:
   sort: asc
   filters:

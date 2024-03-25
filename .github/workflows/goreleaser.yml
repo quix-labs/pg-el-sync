@@ -4,19 +4,20 @@ on:
   release:
     types: [ created ]
 
-permissions:
-  contents: write
-  packages: write
-
 jobs:
   build:
     name: Build static releases
     runs-on: ubuntu-latest
+    env:
+      DOCKER_CLI_EXPERIMENTAL: "enabled"
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@master
 
       - name: Docker Login
         uses: docker/login-action@master

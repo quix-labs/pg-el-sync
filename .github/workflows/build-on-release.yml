@@ -19,7 +19,7 @@ jobs:
 
       - name: Build static release
         run: |
-          go build -o=dist/pg-el-sync_linux_amd64 .
+          go build  -ldflags "-s -w" -o=dist/pg-el-sync_linux_amd64 .
 
       - name: Upload Release Asset
         uses: csexton/release-asset-action@v3

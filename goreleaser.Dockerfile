@@ -1,6 +1,6 @@
 FROM alpine:3.19.0
 
-COPY pg-el-sync /
+COPY pg-el-sync /bin
 
 ENV USER=nonroot
 ENV UID=10001
@@ -16,4 +16,4 @@ RUN chmod +x /bin/dumb-init
 
 USER $USER:$USER
 ENTRYPOINT ["/bin/dumb-init", "--"]
-CMD ["/pg-el-sync","listen"]
+CMD ["pg-el-sync","listen"]

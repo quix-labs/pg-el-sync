@@ -12,17 +12,26 @@ before:
     - go mod tidy
 
 builds:
-  - env:
+  - id: nonlinux
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - windows
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+
+  - id: linux
+    env:
       - CGO_ENABLED=0
     goos:
       - linux
-#      - windows
-#      - darwin
     goarch:
       - amd64
-#      - arm64
-#      - arm
-#      - "386"
+      - arm64
+      - arm
+      - "386"
 
 nfpms:
   - maintainer: COLANT Alan <contact@alancolant.com>
@@ -30,12 +39,6 @@ nfpms:
     homepage: "https://github.com/quix-labs/{{.ProjectName}}"
     license: MIT
     formats: [ deb, rpm, apk ]
-
-archives:
-  - format_overrides:
-      - goos: windows
-        format: zip
-    files: [ LICENSE, README.md ]
 
 dockers:
 

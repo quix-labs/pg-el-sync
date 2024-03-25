@@ -1,4 +1,4 @@
-module go_pg_es_sync
+module github.com/quix-labs/pg-el-sync
 
 go 1.19
 

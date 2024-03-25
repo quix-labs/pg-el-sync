@@ -1,7 +1,7 @@
 package types
 
 import (
-	"go_pg_es_sync/internals/utils"
+	"github.com/quix-labs/pg-el-sync/internals/utils"
 )
 
 type Where struct {

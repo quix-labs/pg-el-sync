@@ -1,7 +1,7 @@
 package main
 
 import (
-	"go_pg_es_sync/internals"
+	"github.com/quix-labs/pg-el-sync/internals"
 	"log"
 	"os"
 )

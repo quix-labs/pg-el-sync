@@ -2,8 +2,8 @@ package types
 
 import (
 	"fmt"
+	"github.com/quix-labs/pg-el-sync/internals/utils"
 	"github.com/rs/zerolog"
-	"go_pg_es_sync/internals/utils"
 	"os"
 	"time"
 )

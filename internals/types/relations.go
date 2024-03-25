@@ -2,7 +2,7 @@ package types
 
 import (
 	"errors"
-	"go_pg_es_sync/internals/utils"
+	"github.com/quix-labs/pg-el-sync/internals/utils"
 )
 
 type ForeignKey struct {

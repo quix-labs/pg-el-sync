@@ -1,6 +1,6 @@
 package types
 
-import "go_pg_es_sync/internals/utils"
+import "github.com/quix-labs/pg-el-sync/internals/utils"
 
 type InsertEvent struct {
 	Index     string

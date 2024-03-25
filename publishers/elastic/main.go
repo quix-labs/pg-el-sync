@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	elasticsearch8 "github.com/elastic/go-elasticsearch/v8"
-	"go_pg_es_sync/internals/types"
-	"go_pg_es_sync/publishers"
+	"github.com/quix-labs/pg-el-sync/internals/types"
+	"github.com/quix-labs/pg-el-sync/publishers"
 	"sync"
 )
 

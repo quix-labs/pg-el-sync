@@ -2,7 +2,7 @@ package postgresql
 
 import (
 	"fmt"
-	"go_pg_es_sync/internals/types"
+	"github.com/quix-labs/pg-el-sync/internals/types"
 	"strings"
 )
 

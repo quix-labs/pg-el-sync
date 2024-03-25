@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"go_pg_es_sync/internals/utils"
+	"github.com/quix-labs/pg-el-sync/internals/utils"
 	"io"
 	"log"
 	"os"

@@ -2,10 +2,10 @@ package internals
 
 import (
 	"fmt"
-	"go_pg_es_sync/internals/types"
-	"go_pg_es_sync/internals/utils"
-	"go_pg_es_sync/publishers/elastic"
-	"go_pg_es_sync/subscribers/postgresql"
+	"github.com/quix-labs/pg-el-sync/internals/types"
+	"github.com/quix-labs/pg-el-sync/internals/utils"
+	"github.com/quix-labs/pg-el-sync/publishers/elastic"
+	"github.com/quix-labs/pg-el-sync/subscribers/postgresql"
 	"time"
 )
 

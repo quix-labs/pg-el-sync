@@ -1,0 +1,47 @@
+# This is an example .goreleaser.yml file with some sensible defaults.
+# Make sure to check the documentation at https://goreleaser.com
+
+# The lines below are called `modelines`. See `:help modeline`
+# Feel free to remove those if you don't want/need to use them.
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+# vim: set ts=2 sw=2 tw=0 fo=cnqoj
+project_name: pg-el-sync
+before:
+  hooks:
+    - go mod download
+    - go mod tidy
+
+builds:
+  - env:
+      - CGO_ENABLED=0
+    id: "pg-el-sync"
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+      - arm
+      - "386"
+
+nfpms:
+  - maintainer: COLANT Alan <contact@alancolant.com>
+    description: "Synchronize your PostgreSQL data to Elasticsearch."
+    homepage: "https://github.com/quix-labs/pg-el-sync"
+    license: MIT
+    formats: [ deb, rpm, apk ]
+
+archives:
+  - format_overrides:
+      - goos: windows
+        format: zip
+    files: [ LICENSE, README.md ]
+
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"

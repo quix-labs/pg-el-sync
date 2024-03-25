@@ -40,10 +40,10 @@ archives:
 dockers:
 
   - image_templates:
-      - "ghrc.io/quix-labs/{{.ProjectName}}:latest"
-      - "ghrc.io/quix-labs/{{.ProjectName}}:{{ .Tag }}"
-      - "ghrc.io/quix-labs/{{.ProjectName}}:v{{ .Major }}"
-      - "ghrc.io/quix-labs/{{.ProjectName}}:v{{ .Major }}.{{ .Minor }}"
+      - "ghcr.io/quix-labs/{{.ProjectName}}:latest"
+      - "ghcr.io/quix-labs/{{.ProjectName}}:{{ .Tag }}"
+      - "ghcr.io/quix-labs/{{.ProjectName}}:v{{ .Major }}"
+      - "ghcr.io/quix-labs/{{.ProjectName}}:v{{ .Major }}.{{ .Minor }}"
     dockerfile: docker/goreleaser.Dockerfile
     build_flag_templates:
       - "--pull"

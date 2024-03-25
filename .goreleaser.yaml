@@ -14,21 +14,20 @@ before:
 builds:
   - env:
       - CGO_ENABLED=0
-    id: "pg-el-sync"
     goos:
       - linux
-      - windows
-      - darwin
+#      - windows
+#      - darwin
     goarch:
       - amd64
-      - arm64
-      - arm
-      - "386"
+#      - arm64
+#      - arm
+#      - "386"
 
 nfpms:
   - maintainer: COLANT Alan <contact@alancolant.com>
     description: "Synchronize your PostgreSQL data to Elasticsearch."
-    homepage: "https://github.com/quix-labs/pg-el-sync"
+    homepage: "https://github.com/quix-labs/{{.ProjectName}}"
     license: MIT
     formats: [ deb, rpm, apk ]
 
@@ -38,7 +37,20 @@ archives:
         format: zip
     files: [ LICENSE, README.md ]
 
+dockers:
 
+  - image_templates:
+      - "ghrc.io/quix-labs/{{.ProjectName}}:latest"
+      - "ghrc.io/quix-labs/{{.ProjectName}}:{{ .Tag }}"
+      - "ghrc.io/quix-labs/{{.ProjectName}}:v{{ .Major }}"
+      - "ghrc.io/quix-labs/{{.ProjectName}}:v{{ .Major }}.{{ .Minor }}"
+    dockerfile: docker/goreleaser.Dockerfile
+    build_flag_templates:
+      - "--pull"
+      - "--label=org.opencontainers.image.created={{.Date}}"
+      - "--label=org.opencontainers.image.title={{.ProjectName}}"
+      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+      - "--label=org.opencontainers.image.version={{.Version}}"
 changelog:
   sort: asc
   filters:

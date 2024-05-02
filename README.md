@@ -56,7 +56,7 @@ To manage the `pg-el-sync listen` command with Supervisord, you can use the foll
 
 ```ini
 [program:pg-el-sync]
-command=path/to/pg-el-sync listen
+command=/path/to/pg-el-sync listen 
 autostart=true
 autorestart=true
 startsecs=10

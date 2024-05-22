@@ -47,7 +47,14 @@ docker run -v /path/to/config.yaml:/app/config.yaml ghcr.io/quix-labs/pg-el-sync
 docker run --rm -v /path/to/config.yaml:/app/config.yaml ghcr.io/quix-labs/pg-el-sync:latest pg-el-sync index
 ```
 
+### Configuration
 
+#### Configuration file
+By default `pg-el-sync` load configuration file from `/app/config.yaml`, you can override using environment variable:
+  ```bash
+    export CONFIG_FILE=/path/to/config.yaml
+    # Or with docker: docker run -e CONFIG_FILE=/path/in/docker/config.yaml ...
+  ``` 
 
 
 ## Supervisord Configuration

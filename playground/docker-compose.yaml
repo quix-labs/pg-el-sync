@@ -1,0 +1,10 @@
+services:
+  pg-el-sync:
+    image: "golang:1.21-alpine"
+    command: ["tail","-f","/dev/null"]
+    user: "1000:1000"
+    environment:
+      HOME: /tmp
+    volumes:
+      - ./:/app
+    working_dir: /app

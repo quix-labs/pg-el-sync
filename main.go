@@ -13,7 +13,12 @@ func main() {
 	}
 
 	config := &internals.Config{}
-	err := config.LoadFromYaml("/app/config.yaml")
+
+	configFile := os.Getenv("CONFIG_FILE")
+	if configFile == "" {
+		configFile = "/app/config.yaml"
+	}
+	err := config.LoadFromYaml(configFile)
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -1,4 +1,4 @@
-package pgxpool_trigger
+package postgresql
 
 import (
 	"context"

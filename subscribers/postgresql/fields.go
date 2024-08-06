@@ -15,8 +15,24 @@ func (fields *Fields) asJsonBuildObjectQuery(table string, additional map[string
 		rawFields = append(rawFields, fmt.Sprintf("'%s',%s", alias, raw))
 	}
 
-	//@TODO Split using JSONB_** || JSONB_BUILD_** IF PARSED FIELDS LENGTH > 50 TO ALLOW MORE THAN 50 fields
-	return "JSON_BUILD_OBJECT(" + strings.Join(rawFields, ",") + ")"
+	// Split into chunks of 50
+	const chunkSize = 50
+
+	// Prevent ERROR: cannot pass more than 100 arguments to a function (SQLSTATE 54023) using chunk
+	if len(rawFields) <= chunkSize {
+		return "JSON_BUILD_OBJECT(" + strings.Join(rawFields, ",") + ")"
+	}
+
+	var chunks []string
+	for i := 0; i < len(rawFields); i += chunkSize {
+		end := i + chunkSize
+		if end > len(rawFields) {
+			end = len(rawFields)
+		}
+		chunks = append(chunks, "JSONB_BUILD_OBJECT("+strings.Join(rawFields[i:end], ",")+")")
+	}
+
+	return strings.Join(chunks, " || ")
 }
 
 func (fields *Fields) getParsedFields(table string, additional map[string]string) map[string]string {
